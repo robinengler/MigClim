@@ -1,0 +1,6 @@
+useDynLib(MigClim)
+export(MigClim.migrate)
+export(MigClim.plot)
+export(MigClim.userGuide)
+export(MigClim.genClust)
+export(MigClim.validate)

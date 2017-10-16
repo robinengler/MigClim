@@ -40,62 +40,74 @@ MigClim.migrate <- function (iniDist="InitialDist", hsMap="HSmap", rcThreshold=0
                              testMode=FALSE, fullOutput=FALSE, keepTempFiles=FALSE)
 {
 
-  # Verify that the user has installed the "raster" and "SDMTools" library on his machine (this is no longer needed, R does this automatically).
-  #if(require(raster, quietly=T)==F) stop("This function requires the 'raster' package. Please install 'raster' on your computer and try again.")
-  #if(require(SDMTools, quietly=T)==F) stop("This function requires the 'SDMTools' package. Please install 'SDMTools' on your computer and try again.")
+  ### Load required libraries.
+  ### ***********************
 
-  # Verify that parameters have meaningful values.
-  if(!is.numeric(rcThreshold)) stop("'rcThreshold' must be an integer number in the range [0:1000]. \n")
-  if(rcThreshold<0 | rcThreshold > 1000) stop("'rcThreshold' must be an integer number in the range [0:1000]. \n")
-  if(rcThreshold%%1!=0) stop("'rcThreshold' must be a number an integer number. \n")
-  if(!is.numeric(envChgSteps)) stop("'envChgSteps' must be an integer number in the range [1:295]. \n")
-  if(envChgSteps<1 | envChgSteps > 295) stop("'envChgSteps' must be an integer number in the range [1:295]. \n")
-  if(envChgSteps%%1!=0) stop("'envChgSteps' must be a number an integer number. \n")
-  if(!is.numeric(dispSteps)) stop("'dispSteps' must be a number in the range [1:99]. \n")
-  if(dispSteps<1 | dispSteps > 99) stop("'dispSteps' must be a number in the range [1:99]. \n")
-  if(dispSteps%%1!=0) stop("'dispSteps' must be a number an integer number. \n")
+  # Verify that the user has installed the "raster" and "SDMTools" library on his machine.
+  # Note: this is no longer needed, R does this automatically.
+  #if(require(raster, quietly=T)==F) stop("Please install 'raster' on your computer and try again.")
+  #if(require(SDMTools, quietly=T)==F) stop("Please install 'SDMTools' on your computer and try again.")
 
-  if(!is.numeric(dispKernel)) stop("Values of 'dispKernel' must be numbers > 0 and <= 1. \n")
+
+  ### Input data check.
+  ### ****************
+  # Verify reclassification threshold values. The reclassification threshold must be an integer number in the
+  # range [0-1000].
+  if(!is.numeric(rcThreshold)) stop("INPUT ERROR:'rcThreshold' must be an integer number in the range [0:1000].")
+  if(rcThreshold < 0 | rcThreshold > 1000) stop("INPUT ERROR: 'rcThreshold' must be an integer number in the range [0:1000].")
+  if(rcThreshold %% 1 != 0) stop("'rcThreshold' must be an integer number.")
+  #
+  # Verify environmental change steps values.
+  if(!is.numeric(envChgSteps)) stop("'envChgSteps' must be an integer number in the range [1:295].")
+  if(envChgSteps<1 | envChgSteps > 295) stop("'envChgSteps' must be an integer number in the range [1:295].")
+  if(envChgSteps%%1!=0) stop("'envChgSteps' must be a number an integer number.")
+  if(!is.numeric(dispSteps)) stop("'dispSteps' must be a number in the range [1:99].")
+  if(dispSteps<1 | dispSteps > 99) stop("'dispSteps' must be a number in the range [1:99].")
+  if(dispSteps%%1!=0) stop("'dispSteps' must be a number an integer number.")
+
+  if(!is.numeric(dispKernel)) stop("Values of 'dispKernel' must be numbers > 0 and <= 1.")
   if(any(dispKernel>1) | any(dispKernel<=0)) stop("Values of 'dispKernel' must be numbers > 0 and <= 1")
-  if(barrier!="") if(!any(barrierType==c("weak","strong"))) stop("'barrierType' must be either 'weak' or 'strong'. \n")
+  if(barrier!="") if(!any(barrierType==c("weak","strong"))) stop("'barrierType' must be either 'weak' or 'strong'.")
 
-  if(!is.numeric(iniMatAge)) stop("'iniMatAge' must be an integer number > 0. \n")
-  if(iniMatAge<=0 | iniMatAge%%1!=0) stop("'iniMatAge' must be an integer number > 0. \n")
-  if(!is.numeric(propaguleProd)) stop("Values of 'propaguleProd' must be numbers > 0 and < 1. \n")
-  if(any(propaguleProd>1) | any(propaguleProd<=0)) stop("Values of 'propaguleProd' must be numbers > 0 and <= 1. \n")
-  if(length(propaguleProd)>1) if(propaguleProd[length(propaguleProd)]==1) stop("If the length of the 'propaguleProd' vector is > 1, then the last value cannot be 1. See the MigClim user guide 'MigClim.userGuide()' for detailed explanations on this paramter. \n")
+  if(!is.numeric(iniMatAge)) stop("INPUT ERROR: 'iniMatAge' must be an integer number > 0.")
+  if(iniMatAge<=0 | iniMatAge%%1!=0) stop("INPUT ERROR: 'iniMatAge' must be an integer number > 0.")
+  if(!is.numeric(propaguleProd)) stop("INPUT ERROR: values of 'propaguleProd' must be numbers > 0 and < 1.")
+  if(any(propaguleProd>1) | any(propaguleProd<=0)) stop("INPUT ERROR: values for 'propaguleProd' must be numbers > 0 and <= 1.")
+  if(length(propaguleProd)>1) if(propaguleProd[length(propaguleProd)]==1) stop("If the length of the 'propaguleProd' \
+                                 vector is > 1, then the last value cannot be 1. See the MigClim user guide \
+                                 'MigClim.userGuide()' for detailed explanations on this paramter.")
 
-  if(!is.numeric(lddFreq)) stop("Data input error: 'lddFreq' must be a numeric value. \n")
-  if(lddFreq<0 | lddFreq>1) stop("'lddFreq' must be a number >= 0 and <= 1. \n")
+  if(!is.numeric(lddFreq)) stop("INPUT ERROR: 'lddFreq' must be a numeric value.")
+  if(lddFreq<0 | lddFreq>1) stop("'lddFreq' must be a number >= 0 and <= 1.")
   if(lddFreq>0){
-    if(!is.numeric(lddMinDist)) stop("Data input error: 'lddMinDist' must be a numeric value. \n")
-    if(!is.numeric(lddMaxDist)) stop("Data input error: 'lddMaxDist' must be a numeric value. \n")
-    if(lddMinDist%%1!=0 | lddMaxDist%%1!=0) stop("'lddMinDist' and 'lddMaxDist' must be integer numbers. \n")
-    if(lddMinDist <= length(dispKernel)) stop("Data input error: 'lddMinDist' must be larger than the length of the 'dispKernel'. \n")
-    if(lddMaxDist < lddMinDist) stop("Data input error: 'lddMaxDist' must be >= 'lddMinDist'. \n")
+    if(!is.numeric(lddMinDist)) stop("INPUT ERROR: 'lddMinDist' must be a numeric value.")
+    if(!is.numeric(lddMaxDist)) stop("INPUT ERROR: 'lddMaxDist' must be a numeric value.")
+    if(lddMinDist%%1!=0 | lddMaxDist%%1!=0) stop("'lddMinDist' and 'lddMaxDist' must be integer numbers.")
+    if(lddMinDist <= length(dispKernel)) stop("INPUT ERROR: 'lddMinDist' must be larger than the length of the 'dispKernel'.")
+    if(lddMaxDist < lddMinDist) stop("INPUT ERROR: 'lddMaxDist' must be >= 'lddMinDist'.")
   } else lddMinDist <- lddMaxDist <- 0
 
-  if(!is.numeric(replicateNb)) stop("Data input error: 'replicateNb' must be a numeric, integer, value. \n")
-  if(replicateNb<1 | replicateNb%%1!=0) stop("Data input error: 'replicateNb' must be an integer value >= 1. \n")
+  if(!is.numeric(replicateNb)) stop("INPUT ERROR: 'replicateNb' must be a numeric, integer, value.")
+  if(replicateNb<1 | replicateNb%%1!=0) stop("INPUT ERROR: 'replicateNb' must be an integer value >= 1.")
 
-  if(!is.logical(overWrite)) stop("Data input error: 'overWrite' must be either TRUE or FALSE. \n")
-  if(!is.logical(testMode)) stop("Data input error: 'testMode' must be either TRUE or FALSE. \n")
-  if(!is.logical(fullOutput)) stop("Data input error: 'fullOutput' must be either TRUE or FALSE. \n")
-  if(!is.logical(keepTempFiles)) stop("Data input error: 'keepTempFiles' must be either TRUE or FALSE. \n")
+  if(!is.logical(overWrite)) stop("INPUT ERROR: 'overWrite' must be either TRUE or FALSE.")
+  if(!is.logical(testMode)) stop("INPUT ERROR: 'testMode' must be either TRUE or FALSE.")
+  if(!is.logical(fullOutput)) stop("INPUT ERROR: 'fullOutput' must be either TRUE or FALSE.")
+  if(!is.logical(keepTempFiles)) stop("INPUT ERROR: 'keepTempFiles' must be either TRUE or FALSE.")
 
-  if(!is.character(iniDist)) if(!is.matrix(iniDist) & !is.data.frame(iniDist)) stop("Data input error: 'iniDist' must be either a string, a data frame or a matrix. \n")
-  if(!is.character(hsMap)) if(!is.matrix(hsMap) & !is.data.frame(hsMap) & !is.vector(hsMap)) stop("Data input error: 'hsMap' must be either a string, a data frame, a matrix or a vector. \n")
-  if(!is.character(barrier)) if(!is.matrix(barrier) & !is.data.frame(barrier) & !is.vector(barrier)) stop("Data input error: 'barrier' must be either a string, a data frame, a matrix or a vector. \n")
+  if(!is.character(iniDist)) if(!is.matrix(iniDist) & !is.data.frame(iniDist)) stop("INPUT ERROR: 'iniDist' must be either a string, a data frame or a matrix.")
+  if(!is.character(hsMap)) if(!is.matrix(hsMap) & !is.data.frame(hsMap) & !is.vector(hsMap)) stop("INPUT ERROR: 'hsMap' must be either a string, a data frame, a matrix or a vector.")
+  if(!is.character(barrier)) if(!is.matrix(barrier) & !is.data.frame(barrier) & !is.vector(barrier)) stop("INPUT ERROR: 'barrier' must be either a string, a data frame, a matrix or a vector.")
   if(is.character(iniDist)){
 	  # if "iniDist" is given in string format:
-	  if(length(iniDist)>1 | length(hsMap)>1 | length(barrier)>1) stop("Data input error: When given as string input, 'iniDist', 'hsMap' and 'barrier' must have a length = 1.\n")
-	  if(!is.character(hsMap)) stop("Data input error: 'iniDist' and 'hsMap' must have the same format: either both 'string' or both 'data frame/matrix/vector'. \n")
-  	  if(barrier!="") if(!is.character(barrier)) stop("Data input error: 'iniDist' and 'barrier' must have the same format: either both 'string' or both 'data frame/matrix/vector'. \n")
+	  if(length(iniDist)>1 | length(hsMap)>1 | length(barrier)>1) stop("INPUT ERROR: When given as string input, 'iniDist', 'hsMap' and 'barrier' must have a length = 1.\n")
+	  if(!is.character(hsMap)) stop("INPUT ERROR: 'iniDist' and 'hsMap' must have the same format: either both 'string' or both 'data frame/matrix/vector'.")
+  	  if(barrier!="") if(!is.character(barrier)) stop("INPUT ERROR: 'iniDist' and 'barrier' must have the same format: either both 'string' or both 'data frame/matrix/vector'.")
   }
   if(!is.character(iniDist)){
 	  # if "iniDist" is given in data frame or matrix format:
-	  if(is.character(hsMap)) stop("Data input error: 'iniDist' and 'hsMap' must have the same format: either both 'string' or both 'data frame/matrix/vector'. \n")
-  	  if(barrier!="") if(is.character(barrier)) stop("Data input error: 'iniDist' and 'barrier' must have the same format: either both 'string' or both 'data frame/matrix/vector'. \n")
+	  if(is.character(hsMap)) stop("INPUT ERROR: 'iniDist' and 'hsMap' must have the same format: either both 'string' or both 'data frame/matrix/vector'.")
+  	  if(barrier!="") if(is.character(barrier)) stop("INPUT ERROR: 'iniDist' and 'barrier' must have the same format: either both 'string' or both 'data frame/matrix/vector'.")
   }
 
 
@@ -145,7 +157,7 @@ MigClim.migrate <- function (iniDist="InitialDist", hsMap="HSmap", rcThreshold=0
   if(overWrite==F){
 
 	  ### Check if output directory exists
-	  if(file.exists(simulName)) stop("The output directory '", getwd(), "/", simulName, "' already exists. \n Delete this directory or set 'overWrite=TRUE' in the function's parameters.\n")
+	  if(file.exists(simulName)) stop("The output directory '", getwd(), "/", simulName, "' already exists. Delete this directory or set 'overWrite=TRUE' in the function's parameters.\n")
 
 	  ### Check if any output ".asc" files already exist.
 	  if(RExt!=".asc"){
@@ -184,8 +196,8 @@ MigClim.migrate <- function (iniDist="InitialDist", hsMap="HSmap", rcThreshold=0
 	if(is.vector(barrier)) barrier <- as.data.frame(barrier)
 
 	### Verify all inputs are of the data frame type (note: iniDist has already been checked earlier).
-	if(!is.data.frame(hsMap)) stop("Data input error: the 'hsMap' data could not be converted to a dataframe. All inputs must be of the same type. \n")
-	if(useBarrier) if(!is.data.frame(barrier)) stop("Data input error: the 'barrier' data could not be converted to a dataframe. all inputs must be of the same type. \n")
+	if(!is.data.frame(hsMap)) stop("INPUT ERROR: the 'hsMap' data could not be converted to a dataframe. All inputs must be of the same type. \n")
+	if(useBarrier) if(!is.data.frame(barrier)) stop("INPUT ERROR: the 'barrier' data could not be converted to a dataframe. all inputs must be of the same type. \n")
 
 	### Verify all data frames have the correct number of rows and columns.
 	if(ncol(iniDist)!=3) stop("Data input error. When entering 'iniDist' as a data frame or matrix, the data frame must have exactly 3 columns (in this order): X and Y coordinates, Initial distribution of the species. \n")
@@ -197,9 +209,9 @@ MigClim.migrate <- function (iniDist="InitialDist", hsMap="HSmap", rcThreshold=0
 	}
 
 	### Verify all data frames contain meaningful values.
-	if(any(is.na(match(unique(iniDist[,3]), c(0,1))))) stop("Data input error: the 3rd column of 'iniDist' should contain only values of 0 or 1. \n")
-	if(any(hsMap<0) | any(hsMap>1000)) stop("Data input error: all values in 'hsMap' must be in the range [0:1000]. \n")
-	if(useBarrier) if(any(is.na(match(unique(barrier[,1]), c(0,1))))) stop("Data input error: 'barrier' should contain only values of 0 or 1. \n")
+	if(any(is.na(match(unique(iniDist[,3]), c(0,1))))) stop("INPUT ERROR: the 3rd column of 'iniDist' should contain only values of 0 or 1. \n")
+	if(any(hsMap<0) | any(hsMap>1000)) stop("INPUT ERROR: all values in 'hsMap' must be in the range [0:1000]. \n")
+	if(useBarrier) if(any(is.na(match(unique(barrier[,1]), c(0,1))))) stop("INPUT ERROR: 'barrier' should contain only values of 0 or 1. \n")
 
 	### Convert data frames to ascii grid files.
 	CreatedASCII <- paste(simulName, c("InitialDist.asc", paste("HSmap", 1:envChgSteps, ".asc", sep="")), sep=".")
@@ -280,21 +292,21 @@ MigClim.migrate <- function (iniDist="InitialDist", hsMap="HSmap", rcThreshold=0
   #
   noDataVal <- getNoDataValue(paste(iniDist,".asc",sep=""))
   if(!is.na(noDataVal)){
-    if(noDataVal == "ErrorInFile") stop("Data input error: the 'iniDist' ascii grid file does not have the correct structure.\n")
-    if(noDataVal >= 0)             stop("Data input error: the 'iniDist' ascii grid file must have 'NoData' values set to a number < 0.\n")
+    if(noDataVal == "ErrorInFile") stop("INPUT ERROR: the 'iniDist' ascii grid file does not have the correct structure.\n")
+    if(noDataVal >= 0)             stop("INPUT ERROR: the 'iniDist' ascii grid file must have 'NoData' values set to a number < 0.\n")
   }
   for(J in 1:envChgSteps){
 	noDataVal <- getNoDataValue(paste(hsMap,J,".asc",sep=""))
     if(!is.na(noDataVal)){
-      if(noDataVal == "ErrorInFile") stop("Data input error: one or more 'hsMap' ascii grid files do not have the correct structure.\n")
-      if(noDataVal >= 0)             stop("Data input error: all 'hsMap' ascii grid files must have 'NoData' values set to a number < 0.\n")
+      if(noDataVal == "ErrorInFile") stop("INPUT ERROR: one or more 'hsMap' ascii grid files do not have the correct structure.\n")
+      if(noDataVal >= 0)             stop("INPUT ERROR: all 'hsMap' ascii grid files must have 'NoData' values set to a number < 0.\n")
     }
   }
   if(barrier!=""){
     noDataVal <- getNoDataValue(paste(barrier,".asc",sep=""))
     if(!is.na(noDataVal)){
-      if(noDataVal == "ErrorInFile") stop("Data input error: the 'Barrier' ascii grid file does not have the correct structure.\n")
-      if(noDataVal >= 0)             stop("Data input error: the 'Barrier' ascii grid file must have 'NoData' values set to a number < 0.\n")
+      if(noDataVal == "ErrorInFile") stop("INPUT ERROR: the 'Barrier' ascii grid file does not have the correct structure.\n")
+      if(noDataVal >= 0)             stop("INPUT ERROR: the 'Barrier' ascii grid file must have 'NoData' values set to a number < 0.\n")
     }
   }
   rm(noDataVal)
@@ -306,20 +318,20 @@ MigClim.migrate <- function (iniDist="InitialDist", hsMap="HSmap", rcThreshold=0
   Rst <- raster(paste(iniDist,".asc",sep=""))
   nrRows <- nrow(Rst)
   nrCols <- ncol(Rst)
-  if(any(is.na(match(raster::unique(Rst), c(0,1))))) stop("Data input error: the 'iniDist' raster should contain only values of 0 or 1. \n")
-  #if(dataType(Rst)!="INT2U" & dataType(Rst)!="INT1U") stop("Data input error: the 'iniDist' layer must contain integer values (8 or 16-bit unsigned integers). The R 'dataType' code for 8-bit and 16-bit unsigned integers is 'INT1U' and 'INT2U'.")
+  if(any(is.na(match(raster::unique(Rst), c(0,1))))) stop("INPUT ERROR: the 'iniDist' raster should contain only values of 0 or 1. \n")
+  #if(dataType(Rst)!="INT2U" & dataType(Rst)!="INT1U") stop("INPUT ERROR: the 'iniDist' layer must contain integer values (8 or 16-bit unsigned integers). The R 'dataType' code for 8-bit and 16-bit unsigned integers is 'INT1U' and 'INT2U'.")
   for(J in 1:envChgSteps){
     Rst <- raster(paste(hsMap,J,".asc",sep=""))
-    #if(dataType(Rst)!="INT2U") stop("Data input error: all habitat suitability rasters must contain integer values (16-bit unsigned integers) in the range 0 to 1000. The R 'dataType' code for 16-bit unsigned integers is 'INT2U'.")
-    if(nrow(Rst)!=nrRows | ncol(Rst)!=nrCols) stop("Data input error: not all your rasters input data have the same dimensions. \n")
-    if(cellStats(Rst,"min")<0 | cellStats(Rst,"max")>1000) stop("Data input error: all habitat suitability rasters must have values in the range [0:1000]. \n")
+    #if(dataType(Rst)!="INT2U") stop("INPUT ERROR: all habitat suitability rasters must contain integer values (16-bit unsigned integers) in the range 0 to 1000. The R 'dataType' code for 16-bit unsigned integers is 'INT2U'.")
+    if(nrow(Rst)!=nrRows | ncol(Rst)!=nrCols) stop("INPUT ERROR: not all your rasters input data have the same dimensions. \n")
+    if(cellStats(Rst,"min")<0 | cellStats(Rst,"max")>1000) stop("INPUT ERROR: all habitat suitability rasters must have values in the range [0:1000]. \n")
     rm(Rst)
   }
   if(barrier!=""){
     Rst <- raster(paste(barrier,".asc",sep=""))
-    #if(dataType(Rst)!="INT2U" & dataType(Rst)!="INT1U") stop("Data input error: the 'barrier' layer must contain integer values (8 or 16-bit unsigned integers). The R 'dataType' code for 8-bit and 16-bit unsigned integers is 'INT1U' and 'INT2U'.")
-    if(nrow(Rst)!=nrRows | ncol(Rst)!=nrCols) stop("Data input error: not all your rasters input data have the same dimensions.\n")
-    if(any(is.na(match(raster::unique(Rst), c(0,1))))) stop("Data input error: the 'barrier' raster should contain only values of 0 or 1.\n")
+    #if(dataType(Rst)!="INT2U" & dataType(Rst)!="INT1U") stop("INPUT ERROR: the 'barrier' layer must contain integer values (8 or 16-bit unsigned integers). The R 'dataType' code for 8-bit and 16-bit unsigned integers is 'INT1U' and 'INT2U'.")
+    if(nrow(Rst)!=nrRows | ncol(Rst)!=nrCols) stop("INPUT ERROR: not all your rasters input data have the same dimensions.\n")
+    if(any(is.na(match(raster::unique(Rst), c(0,1))))) stop("INPUT ERROR: the 'barrier' raster should contain only values of 0 or 1.\n")
     rm(Rst)
   }
 

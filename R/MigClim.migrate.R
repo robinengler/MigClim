@@ -40,19 +40,19 @@ MigClim.migrate <- function (iniDist="InitialDist", hsMap="HSmap", rcThreshold=0
                              testMode=FALSE, fullOutput=FALSE, keepTempFiles=FALSE)
 {
 
-  ### Load required libraries.
-  ### ***********************
+    ### Load required libraries.
+    ### ***********************
 
-  # Verify that the user has installed the "raster" and "SDMTools" library on his machine.
-  # Note: this is no longer needed, R does this automatically.
-  #if(require(raster, quietly=T)==F) stop("Please install 'raster' on your computer and try again.")
-  #if(require(SDMTools, quietly=T)==F) stop("Please install 'SDMTools' on your computer and try again.")
+    # Verify that the user has installed the "raster" and "SDMTools" library on his machine.
+    # Note: this is no longer needed, R does this automatically.
+    #if(require(raster, quietly=T)==F) stop("Please install 'raster' on your computer and try again.")
+    #if(require(SDMTools, quietly=T)==F) stop("Please install 'SDMTools' on your computer and try again.")
 
 
-  ### Input data check.
-  ### ****************
-  # Verify reclassification threshold values. The reclassification threshold must be an integer number in the
-  # range [0-1000].
+    ### Input data check.
+    ### ****************
+    # Verify reclassification threshold values. The reclassification threshold must be an integer number in the
+    # range [0-1000].
   if(!is.numeric(rcThreshold)) stop("INPUT ERROR:'rcThreshold' must be an integer number in the range [0:1000].")
   if(rcThreshold < 0 | rcThreshold > 1000) stop("INPUT ERROR: 'rcThreshold' must be an integer number in the range [0:1000].")
   if(rcThreshold %% 1 != 0) stop("'rcThreshold' must be an integer number.")
@@ -431,28 +431,40 @@ MigClim.migrate <- function (iniDist="InitialDist", hsMap="HSmap", rcThreshold=0
 
 
 
-### This function checks the structure of an ESRI ascii grid file. If the structure is correct, it returns its NoData value.
-### If the structure of the file is not correct, the function returns a string: "ErrorInFile". If no NoData value is indicated
-### (which is possible, since this information is optional), the function returns NA.
+########################################################################################################################
+### getNoDataValue.                                                                                                  ###
+### **************                                                                                                   ###
+### Checks the structure of an ascii grid file, and if the structure is correct, returns its "NoData" value. If the 
+### structure of the file is not correct, the function returns a string: "ErrorInFile". If no "NoData" value is
+### indicated (which is possible, since this information is optional), the function returns NA.
+###
+### Input parameters:
+###  -> fileName: full name and path of the ascii grid file to check.
 ###
 getNoDataValue <- function(fileName){
 
-	# verify that the ascii file has the correct structure:
-	noDataVal <- "ErrorInFile"
-	fileStruct <- c("ncols","nrows","xllcorner","yllcorner","cellsize")
-	fileStruct2 <- c(5,5,9,9,8)
-	for(J in 0:4){
-		lineVal <- scan(file=fileName, what="character", nlines=1, skip=J, quiet=TRUE)
-		if(length(lineVal)!=2) return(noDataVal)
-		if(nchar(lineVal[1])!=fileStruct2[J+1]) return(noDataVal)
-		if(length(grep(fileStruct[J+1], lineVal[1], ignore.case=T))!=1) return(noDataVal)
-	}
+    ### Check the ascii file has the correct structure.
+    ### **********************************************
+    noDataVal = "ErrorInFile"
+    fileStruct = c("ncols","nrows","xllcorner","yllcorner","cellsize")
+    fileStruct2 = c(5,5,9,9,8)
+    for(J in 0:4){
+        lineVal <- scan(file=fileName, what="character", nlines=1, skip=J, quiet=TRUE)
+        if(length(lineVal)!=2) return(noDataVal)
+        if(nchar(lineVal[1])!=fileStruct2[J+1]) return(noDataVal)
+        if(length(grep(fileStruct[J+1], lineVal[1], ignore.case=T))!=1) return(noDataVal)
+    }
 
-	# get NoData value (this line is optional in the file. If the line is missing we return NA)
-	lineVal <- scan(file=fileName, what="character", nlines=1, skip=5, quiet=TRUE)
-	if(length(lineVal)<2) return(noDataVal)
-	noDataVal <- NA
-	if(length(grep("NODATA_value", lineVal[1], ignore.case=T))==1 & nchar(lineVal[1])==12) noDataVal <- as.numeric(lineVal[2])
 
-	return(noDataVal)
+    ### Get "NoData" value.
+    ### ******************
+    # This line is optional in the file. If the line is missing we return NA.
+    lineVal = scan(file=fileName, what="character", nlines=1, skip=5, quiet=TRUE)
+    if(length(lineVal)<2) return(noDataVal)
+    noDataVal <- NA
+    if(length(grep("NODATA_value", lineVal[1], ignore.case=T))==1 & nchar(lineVal[1])==12) noDataVal <- as.numeric(lineVal[2])
+
+    return(noDataVal)
 }
+###
+########################################################################################################################

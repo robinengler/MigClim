@@ -1,42 +1,47 @@
-/*
-** file_io.c: Functions for file input/output.
-**
-** Wim Hordijk   Last modified: 11 May 2012 (RE)
-*/
-
+/*###################################################################################################################### 
+### file_io.c - Functions for file input/output.
+### *******************************************
+###
+### Authors: Robin Engler and Wim Hordijk.
+### Last modified: 16 Oct 2017.
+######################################################################################################################*/
 #include "migclim.h"
 
 
-/*
-** mcInit: Initialize the MigClim model by reading the parameter values from
-**         file.
-**
-** Parameters:
-**   - paramFile: The name of the file from which to read the parameter values.
-**
-** Returns:
-**   - If everything went fine:  0.
-**   - Otherwise:               -1.
-*/
 
+/*###################################################################################################################### 
+### function mcInit().
+### *****************
+### Initialize the MigClim model by reading the parameter values from file.
+###
+### Parameters:
+###  -> paramFile: The name of the file from which to read the parameter values.
+###
+### Returns: 0 if everything went fine, -1 otherwise.
+######################################################################################################################*/ 
 int mcInit (char *paramFile)
 {
-  int    i, age, status, lineNr;
-  char   line[1024], param[64];
-  float  p;
-  FILE  *fp;
+  
+  int          i, exitStatus, lineNr, tmpInt;
+  unsigned int randomGeneratorSeed;
+  long         tmpLong;
+  double       tmpDouble;
+  char         line[1024], param[256], fileName[256], tmpString[128];
+  char         *end;
+  //float  floatVal;
+  FILE         *fp;
 
-  status = 0;
+  /* Set default value for 'exitStatus' to 1 (error occured) and fp to NULL. When fp is NULL 
+  ** we know that the file is closed, when it's non-NULL then the file is open. */
+  exitStatus = 1;
   fp = NULL;
 
-  /*
-  ** Set default parameter values.
-  */
+  /* Set default parameter values. */
   nrRows = 0;
   nrCols = 0;
-  strcpy (iniDist, "");
-  strcpy (hsMap, "");
-  strcpy (barrier, "");
+  strcpy(iniDist, "");
+  strcpy(hsMap, "");
+  strcpy(barrier, "");
   useBarrier = false;
   barrierType = STRONG_BARRIER;
   envChgSteps = 0;
@@ -45,428 +50,414 @@ int mcInit (char *paramFile)
   iniMatAge = 0;
   fullMatAge = 0;
   rcThreshold = 0;
-  lddMinDist = 10;
-  lddMaxDist = 15;
+  lddMinDist = 0;
+  lddMaxDist = 0;
   lddFreq = 0.0;
   fullOutput = false;
   replicateNb = 1;
-  strcpy (simulName, "MigClimTest");
+  tmpInt = 0;
+  randomGeneratorSeed = 0;
+  strcpy(simulName, "MigClimTest");
   
-  /*
-  ** Open the file for reading.
-  */
-  if ((fp = fopen(paramFile, "r")) == NULL)
-  {
-    status = -1;
+
+  /* Open the input parameter file for reading. */
+  if((fp = fopen(paramFile, "r")) == NULL){
     Rprintf ("Can't open parameter file %s\n", paramFile);
-    goto End_of_Routine;
+    goto END_OF_FUNCTION;
   }
 
-  /*
-  ** While there are lines left, read and parse them.
-  */
-  lineNr = 0;
-  param[0] = '\0';
-  while (fgets (line, 1024, fp) != NULL)
-  {
-    lineNr++;
-    sscanf (line, "%s", param);
-    /* nrRows */
-    if (strcmp (param, "nrRows") == 0)
-    {
-      if ((sscanf (line, "nrRows %d", &nrRows) != 1) || (nrRows < 1))
-      {
-	status = -1;
-	Rprintf ("Invalid number of rows on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
+
+  /* Read the input parameter file line by line. Here is an example of input parameter file: 
+  **   nrRows 408
+  **   nrCols 321
+  **   iniDist InitialDist
+  **   hsMap HSmap
+  **   rcThreshold 500
+  **   envChgSteps 5
+  **   dispSteps 5
+  **   dispDist 5
+  **   dispKernel 1 0.5 0.25 0.125 0.0625
+  **   barrier Barrier
+  **   barrierType strong
+  **   iniMatAge 1
+  **   fullMatAge 2
+  **   propaguleProd 1
+  **   fullOutput false
+  **   replicateNb 1
+  **   simulName MigClimTest_1  
+  **
+  ** Note: the line 'dispKernel' can be replaced by 'dispKernelFile'. */
+
+  /* 'nrRows': the number of rows of the input matrices for the current MigClim run. */
+  lineNr = 1;
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %d\n", param, &nrRows) != 2) || 
+                                     (strcasecmp(param, "nrRows") != 0) || (nrRows < 1)){
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'nrRows'.\n", lineNr, paramFile);
+    goto END_OF_FUNCTION;
+  }
+
+  
+  /* 'nrCols': the number of columns of the input matrices for the current MigClim run. */
+  lineNr++;
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %d\n", param, &nrCols) != 2) || 
+                                     (strcasecmp(param, "nrCols") != 0) || (nrCols < 1)){
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'nrCols'.\n", lineNr, paramFile);
+    goto END_OF_FUNCTION;
+  }
+
+  
+  /* 'iniDist': a string giving the name of the species initial distribution raster ascii file. */
+  lineNr++;
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %s\n", param, iniDist) != 2) || 
+                          (strcasecmp(param, "iniDist") != 0) || (strlen(iniDist) == 0)){
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'iniDist'.\n", lineNr, paramFile);
+    goto END_OF_FUNCTION;
+  }
+
+
+  /* hsMap: a string giving the basename of the habitat suitability ascii raster files. */
+  lineNr++;
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %s\n", param, hsMap) != 2) || 
+                            (strcasecmp(param, "hsMap") != 0) || (strlen(hsMap) == 0)){
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'hsMap'.\n", lineNr, paramFile);
+    goto END_OF_FUNCTION;
+  }
+
+
+  /* rcThreshold: reclassification threshold for values in habitat suitability maps. Values of rcThreshold
+  **              must be in the range [0,1000]. */
+  lineNr++;
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %d\n", param, &rcThreshold) != 2) || 
+        (strcasecmp(param, "rcThreshold") != 0) || (rcThreshold < 0) || (rcThreshold > 1000)){
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'rcThreshold'.\n", lineNr, paramFile);
+    Rprintf("ERROR: 'rcThreshold' must be a value in the range [0,1000].\n", lineNr, paramFile);
+    goto END_OF_FUNCTION;
+  }
+
+
+  /* envChgSteps: the number of times the habitat suitability maps should be updated. */
+  lineNr++;
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %d\n", param, &envChgSteps) != 2) || 
+                                (strcasecmp(param, "envChgSteps") != 0) || (envChgSteps < 1)){
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'envChgSteps'.\n", lineNr, paramFile);
+    goto END_OF_FUNCTION;
+  }
+
+
+  /* dispSteps: the number dispersal events within each environmental change step. */
+  lineNr++;
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %d\n", param, &dispSteps) != 2) || 
+                                (strcasecmp(param, "dispSteps") != 0) || (dispSteps < 1)){
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'dispSteps'.\n", lineNr, paramFile);
+    goto END_OF_FUNCTION;
+  }
+
+
+  /* dispDist: the maximum distance, in pixels, or regular dispersal events.*/
+  lineNr++;
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %d\n", param, &dispDist) != 2) || 
+                                   (strcasecmp(param, "dispDist") != 0) || (dispDist < 1)){
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'dispDist'.\n", lineNr, paramFile);
+    goto END_OF_FUNCTION;
+  }
+
+
+  /* dispKernel: either a list of float values giving the probability of dispersal PDisp associated to each
+  **             distance class, or a string giving the basename of the dispersal kernel ascii raster files.
+  **             dispersal kernel maps are raster files giving the values of PDisp for each pixel individually,
+  **             and each map gives values for a given distance class. */
+  lineNr++;
+  if(fscanf(fp, "%s", param) != 1){
+    Rprintf("ERROR: unable to read line %d of file [%s].\n", lineNr, paramFile);
+    goto END_OF_FUNCTION;
+  }
+  /* Case 1: single kernel mode, the user passed a list of float values as kernel, the kernel is the same for
+  **         all cells in the landscape (this is the standard mode). */
+  if(strcmp(param, "dispKernel") == 0){
+    singleKernelMode = true;
+    /* Allocate memory so that dispKernel is a vector of size dispDist */
+    dispKernel = (float *)malloc(dispDist * sizeof(float));
+    for(i = 0; i < dispDist; i++){
+      if(fscanf(fp, " %s", &tmpString[0]) != 1){
+        Rprintf("Invalid dispersal kernel values on line %d in parameter file %s.\n", lineNr, paramFile);
+        goto END_OF_FUNCTION;
+      }
+      dispKernel[i] = strtof(&tmpString[0], NULL);
+    }
+    /* Read the carriage return character so that we move the pointer in the file to the start of the next line. */
+    tmpInt = fscanf(fp, "\n");
+
+  }
+  /* Case 2: multi kernel mode, the user passed the basename of the dispersal kernel ascii raster files.
+  **         We directly read the ascii rasters and store their values in the 'dispKernel' vector. */
+  else if( strcmp(param, "dispKernelFile") == 0 ){
+    singleKernelMode = false;
+    /* Allocate memory so that dispKernel is a vector that can contain all values from all dispersal kernel
+    ** maps (values are just put in the vector one after the other until we are through all maps). */
+    dispKernel = (float *)malloc(dispDist * nrRows * nrCols * sizeof(float));
+    /* Read basename of kernel dispersal ascii grids. */
+    if (fscanf(fp," %s\n", param) != 1){
+      Rprintf("Invalid dispersal kernel values on line %d in parameter file %s.\n", lineNr, paramFile);
+      goto END_OF_FUNCTION;
+    }
+    /* Read all dispersal kernel matrices, load their content into the dispKernel float vector. */
+    for(i = 0; i < dispDist; i++){
+      sprintf(fileName, "%s%d.asc", param, i+1);
+      /* Important: the pointer we pass to 'readMatrixFloat' is not a pointer to the first element of
+      **            the array, but a pointer to the element "i*nrRows*nrCols". This allows us to 
+      **            sequencially fill the array "dispKernel" with the values contained in each of the
+      **            dispersal kernel matrices. What we are doing is simply putting all values in a long
+      **            array and then each time we jump a number of cells equal to the number of cells in 
+      **            a kernel raster. 
+      **            When passing the address of a given cell of an array, then C will keep filling the 
+      **            array starting from this position (it's as if this position is the first position
+      **            in the array. */
+      if( readMatrixFloat(fileName, &dispKernel[i*nrRows*nrCols]) != 0 ){
+        Rprintf("ERROR: failed to read dispersal kernel [%s].\n", fileName);
       }
     }
-    /* nrCols */
-    else if (strcmp (param, "nrCols") == 0)
-    {
-      if ((sscanf (line, "nrCols %d", &nrCols) != 1) || (nrCols < 1))
-      {
-	status = -1;
-	Rprintf ("Invalid number of columns on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
-      }
+  }
+  else{
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'dispDist' or 'dispKernelFile'.\n", lineNr, paramFile);
+  }
+
+
+  /* barrier: a string giving the name of the barrier ascii raster files. This value is optional. */
+  lineNr++;
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %s\n", param, barrier) != 2) || 
+                          (strcasecmp(param, "barrier") != 0) || (strlen(barrier) == 0)){
+    Rprintf("ERROR: line %d of file [%s] must contain the value for 'barrier'.\n", lineNr, paramFile);
+    goto END_OF_FUNCTION;
+  }
+  if(strcmp(barrier, "NA") == 0) useBarrier = false; else useBarrier = true; 
+
+  /* barrierType: a string giving the name of the barrier ascii raster files. This value is optional. */
+  lineNr++;
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %s\n", param, tmpString) != 2) || 
+                      (strcasecmp(param, "barrierType") != 0) || (strlen(tmpString) == 0)){
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'barrier'.\n", lineNr, paramFile);
+    goto END_OF_FUNCTION;
+  }
+  if(useBarrier==true){
+    /* If a barrier raster layer was specified, then barrierType must be either 'weak' or 'strong'. 
+    ** Note: WEAK_BARRIER and STRONG_BARRIER are simply macros that expand to respectively 1 and 2, so
+    ** the type of barrierType is int and not a char. */
+    if(strcmp(tmpString, "weak") == 0){
+      barrierType = WEAK_BARRIER;
     }
-    /* iniDist */
-    else if (strcmp (param, "iniDist") == 0)
-    {
-      if (sscanf (line, "iniDist %s", iniDist) != 1)
-      {
-	status = -1;
-	Rprintf ("Invalid initial distribution file name on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
-      }
+    else if(strcmp(tmpString, "strong") == 0){
+      barrierType = STRONG_BARRIER;
     }
-    /* hsMap */
-    else if (strcmp (param, "hsMap") == 0)
-    {
-      if (sscanf (line, "hsMap %s", hsMap) != 1)
-      {
-	status = -1;
-	Rprintf ("Invalid habitat suitability map file name on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
-      }
-    }
-    /* barrier */
-    else if (strcmp (param, "barrier") == 0)
-    {
-      if (sscanf (line, "barrier %s", barrier) != 1)
-      {
-	status = -1;
-	Rprintf ("Invalid barrier file name on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
-      }
-      useBarrier = true;
-    }
-    /* barrierType */
-    else if (strcmp (param, "barrierType") == 0)
-    {
-      if (sscanf (line, "barrierType %s", param) != 1)
-      {
-	status = -1;
-	Rprintf ("Invalid barrier type on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
-      }
-      if (strcmp (param, "weak") == 0)
-      {
-	barrierType = WEAK_BARRIER;
-      }
-      else if (strcmp (param, "strong") == 0)
-      {
-	barrierType = STRONG_BARRIER;
-      }
-      else
-      {
-	status = -1;
-	Rprintf ("Invalid barrier type on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
-      }
-    }
-    /* envChgSteps */
-    else if (strcmp (param, "envChgSteps") == 0)
-    {
-      if ((sscanf (line, "envChgSteps %d", &envChgSteps) != 1) ||
-	  (envChgSteps < 1))
-      {
-	status = -1;
-	Rprintf ("Invalid number of environmental change steps on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
-      }
-    }
-    /* dispSteps */
-    else if (strcmp (param, "dispSteps") == 0)
-    {
-      if ((sscanf (line, "dispSteps %d", &dispSteps) != 1) ||
-	  (dispSteps < 1))
-      {
-	status = -1;
-	Rprintf ("Invalid number of dispersal steps on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
-      }
-    }
-    /* dispDist & dispKernel */
-    else if (strcmp (param, "dispDist") == 0)
-    {
-      if ((sscanf (line, "dispDist %d", &dispDist) != 1) ||
-	  (dispDist < 1))
-      {
-	status = -1;
-	Rprintf ("Invalid dispersal distance on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
-      }
-      lineNr++;
-      dispKernel = (double *)malloc (dispDist * sizeof (double));
-      if (fscanf (fp, "dispKernel %f", &p) != 1)
-      {
-	status = -1;
-	Rprintf ("Dispersal kernel expected on line %d in parameter file %s\n",
-		 line, paramFile);
-	goto End_of_Routine;
-      }
-      dispKernel[0] = p;
-      for (i = 1; i < dispDist; i++)
-      {
-	if (fscanf (fp, "%f", &p) != 1)
-	{
-	  status = -1;
-	  Rprintf ("Invalid dispersal kernel values on line %d in parameter file %s.\n",
-		   line, paramFile);
-	  goto End_of_Routine;
-	}
-	dispKernel[i] = p;
-      }
-      p = fscanf (fp, "\n");
-    }
-    /* iniMatAge */
-    else if (strcmp (param, "iniMatAge") == 0)
-    {
-      if ((sscanf (line, "iniMatAge %d", &iniMatAge) != 1) ||
-	  (iniMatAge < 1))
-      {
-	status = -1;
-	Rprintf ("Invalid initial maturity age on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
-      }
-    }
-    /* fullMatAge */
-    else if (strcmp (param, "fullMatAge") == 0)
-    {
-      if ((sscanf (line, "fullMatAge %d", &fullMatAge) != 1) ||
-	  (fullMatAge < 1))
-      {
-	status = -1;
-	Rprintf ("Invalid full maturity age on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
-      }
-      lineNr++;
-      age = fullMatAge - iniMatAge;
-      if (age == 0)
-      {
-	age = 1;
-      }
-      propaguleProd = (double *)malloc (age * sizeof (double));
-      if (fscanf (fp, "propaguleProd %f", &p) != 1)
-      {
-	status = -1;
-	Rprintf ("Seed production probabilities expected on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
-      }
-      propaguleProd[0] = p;
-      for (i = 1; i < age; i++)
-      {
-	if (fscanf (fp, "%f", &p) != 1)
-	{
-	  status = -1;
-	  Rprintf ("Invalid seed production probability on line %d in parameter file %s\n",
-		   lineNr, paramFile);
-	  goto End_of_Routine;
-	}
-	propaguleProd[i] = p;
-      }
-      p = fscanf (fp, "\n");
-    }
-    /* rcThreshold */
-    else if (strcmp (param, "rcThreshold") == 0)
-    {
-      if ((sscanf (line, "rcThreshold %d", &rcThreshold) != 1) ||
-	  (rcThreshold < 0) || (rcThreshold > 1000))
-      {
-	status = -1;
-	Rprintf ("Invalid reclassification threshold on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
-      }
-    }
-    /* lddFreq */
-    else if (strcmp (param, "lddFreq") == 0)
-    {
-      if ((sscanf (line, "lddFreq %f", &p) != 1) ||
-	  (p < 0.0) || (p > 1.0))
-      {
-	status = -1;
-	Rprintf ("Invalid long-distance dispersal frequency on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
-      }
-      lddFreq = p;
-    }
-    /* lddMinDist */
-    else if (strcmp (param, "lddMinDist") == 0)
-    {
-      if ((sscanf (line, "lddMinDist %d", &lddMinDist) != 1) || (lddMinDist < 0))
-      {
-	status = -1;
-	Rprintf ("Invalid minimum long-distance dispersal value on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
-      }
-    }
-    /* lddMaxDist */
-    else if (strcmp (param, "lddMaxDist") == 0)
-    {
-      if ((sscanf (line, "lddMaxDist %d", &lddMaxDist) != 1) || (lddMaxDist <= lddMinDist))
-      {
-	status = -1;
-	Rprintf ("Invalid maximum long-distance dispersal value on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
-      }
-    }
-    /* fullOutput */
-    else if (strcmp (param, "fullOutput") == 0)
-    {
-      if (sscanf (line, "fullOutput %s", param) != 1)
-      {
-	status = -1;
-	Rprintf ("Incomplete 'fullOutput' argument on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
-      }
-      if (strcmp (param, "true") == 0)
-      {
-	fullOutput = true;
-      }
-      else if (strcmp (param, "false") == 0)
-      {
-	fullOutput = false;
-      }
-      else
-      {
-	status = -1;
-	Rprintf ("Invalid value for argument 'fullOutput' on line %d in parameter file %s\n", lineNr, paramFile);
-	goto End_of_Routine;
-      }
-    }
-    /* replicateNb */
-    else if (strcmp (param, "replicateNb") == 0)  /* if both strings are equal, strcmp returns 0 */
-    {
-      if(sscanf(line, "replicateNb %d", &replicateNb) != 1)  /* On success, the function returns the number of variables filled.  */
-      {
-	    status = -1;
-	    Rprintf ("Invalid value for replicateNb parameter on line %d in parameter file %s\n", lineNr, paramFile);
-	    goto End_of_Routine;
-      }   
-    }
-    
-    /* simulName */
-    else if (strcmp (param, "simulName") == 0)
-    {
-      if (sscanf (line, "simulName %s", simulName) != 1)
-      {
-	status = -1;
-	Rprintf ("Invalid output file name on line %d in parameter file %s\n",
-		 lineNr, paramFile);
-	goto End_of_Routine;
-      }
-    }
-    /* Unknown parameter */
-    else
-    {
-      status = -1;
-      Rprintf ("Unknown parameter on line %d in parameter file %s\n", lineNr,
-	      paramFile);
-      goto End_of_Routine;
+    else{
+      Rprintf ("Invalid barrier type on line %d in parameter file %s\n", lineNr, paramFile);
+      goto END_OF_FUNCTION;
     }
   }
 
-  /*
-  ** Check the parameter values for validity.
-  */
-  if (nrRows == 0)
-  {
-    status = -1;
-    Rprintf ("No number of rows specified in parameter file %s\n", paramFile);
-    goto End_of_Routine;
+
+  /* iniMatAge: age of cells at which they can start to produce propagules. Must be a value >= 1. */
+  lineNr++;
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %d\n", param, &iniMatAge) != 2) || 
+                                  (strcasecmp(param, "iniMatAge") != 0) || (iniMatAge < 1)){
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'iniMatAge'.\n", lineNr, paramFile);
+    Rprintf("ERROR: 'iniMatAge' must be an integer >= 1.\n", lineNr, paramFile);
+    goto END_OF_FUNCTION;
   }
-  if (nrCols == 0)
-  {
-    status = -1;
-    Rprintf ("No number of columns specified in parameter file %s\n",
-	     paramFile);
-    goto End_of_Routine;
+
+
+  /* fullMatAge: age of cells at which they reach full propagule production potential. Must be a value >= 1,
+  **             and it must also be >= iniMatAge. */
+  lineNr++;
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %d\n", param, &fullMatAge) != 2) || 
+                         (strcasecmp(param, "fullMatAge") != 0) || (fullMatAge < iniMatAge)){
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'fullMatAge'.\n", lineNr, paramFile);
+    Rprintf("ERROR: 'fullMatAge' must be an integer >= 1 and >= 'iniMatAge'.\n", lineNr, paramFile);
+    goto END_OF_FUNCTION;
   }
-  if (strlen (iniDist) == 0)
-  {
-    status = -1;
-    Rprintf ("No initial distribution file name specified in parameter file %s\n",
-	     paramFile);
-    goto End_of_Routine;
+
+
+  /* propaguleProd: list of float values giving the probability of propagule production for each age category
+  **                from iniMatAge to fullMatAge. If iniMatAge==fullMatAge then propaguleProd has a single
+  **                value that is equal to 1 (100%). */
+  lineNr++;
+  if((fscanf(fp, "%s", param) != 1) || (strcasecmp(param, "propaguleProd") != 0)){
+    Rprintf("ERROR: line %d of file [%s] must contain values for 'propaguleProd'.\n", lineNr, paramFile);
+    goto END_OF_FUNCTION;
   }
-  if (strlen (hsMap) == 0)
-  {
-    status = -1;
-    Rprintf ("No habitat suitability map file name specified in parameter file %s\n",
-	     paramFile);
-    goto End_of_Routine;
+  /* Allocate memory so that propaguleProd is a vector of size age */
+  if(fullMatAge > iniMatAge){
+    propaguleProd = (double *)malloc((fullMatAge - iniMatAge) * sizeof(double));
+    for(i = 0; i < (fullMatAge - iniMatAge); i++){
+      if(fscanf(fp, " %lf", &tmpDouble) != 1){
+        Rprintf("Invalid propaguleProd kernel values on line %d in parameter file [%s].\n", lineNr, paramFile);
+        goto END_OF_FUNCTION;
+      }
+      propaguleProd[i] = tmpDouble;
+    }
   }
-  if (useBarrier && (strlen (barrier) == 0))
-  {
-    status = -1;
-    Rprintf ("No barrier file name specified in parameter file %s\n",
-	     paramFile);
-    goto End_of_Routine;
+  else{
+    propaguleProd = NULL;
   }
-  if (envChgSteps == 0)
-  {
-    status = -1;
-    Rprintf ("No number of environmental change steps specified in parameter file %s\n",
-	     paramFile);
-    goto End_of_Routine;
+  /* Read the carriage return character so that we move the pointer in the file to the start of the next line. */
+  tmpInt = fscanf(fp, "\n");
+
+
+  /* lddFreq: frequence of long distance dispersal events. This parameter is optional and its default is 0. */
+  lineNr++;
+  if( (fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %lf\n", param, &lddFreq) != 2) || 
+                                                      (strcasecmp(param, "lddFreq") != 0) ){
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'lddFreq'.\n", lineNr, paramFile);
+    Rprintf("ERROR: param[%s], tmpString[%s].\n", param, tmpString);
+    goto END_OF_FUNCTION;
   }
-  if (dispSteps == 0)
-  {
-    status = -1;
-    Rprintf ("No number of dispersal steps specified in parameter file %s\n",
-	     paramFile);
-    goto End_of_Routine;
+  if( (lddFreq < 0.0) || (lddFreq > 1.0) ){
+    Rprintf("ERROR: 'lddFreq' must be an float in the range [0,1].\n");
+    goto END_OF_FUNCTION;
   }
-  if (dispDist == 0)
-  {
-    status = -1;
-    Rprintf ("No dispersal distance specified in parameter file %s\n",
-	     paramFile);
-    goto End_of_Routine;
+
+
+  /* lddMinDist: minimum distance for long distance dispersal events. This parameter is optional and if lddFreq
+  ** is equal to 0.0 then this lddMinDist will also be equal to 0. */
+  lineNr++;
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %d\n", param, &lddMinDist) != 2) || 
+                                 (strcasecmp(param, "lddMinDist") != 0) || (lddMinDist < 0)){
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'lddMinDist'.\n", lineNr, paramFile);
+    Rprintf("ERROR: 'lddMinDist' must be an integer, it must be > dispDist if lddFreq is > 0.\n");
+    goto END_OF_FUNCTION;
   }
-  if (iniMatAge == 0)
-  {
-    status = -1;
-    Rprintf ("No initial maturity age specified in parameter file %s\n",
-	     paramFile);
-    goto End_of_Routine;
+  if((lddFreq > 0) && (lddMinDist < dispDist)){
+    Rprintf("ERROR: 'lddMinDist' must be > 'dispDist' if 'lddFreq' is > 0.\n");
+    goto END_OF_FUNCTION;
   }
-  if (fullMatAge == 0)
-  {
-    status = -1;
-    Rprintf ("No full maturity age specified in parameter file %s\n",
-	     paramFile);
-    goto End_of_Routine;
+
+
+  /* lddMaxDist: minimum distance for long distance dispersal events. This parameter is optional and if lddFreq
+  ** is equal to 0.0 then this lddMaxDist will also be equal to 0. Its value must be >= lddMinDist. */
+  lineNr++;
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %d\n", param, &lddMaxDist) != 2) || 
+                                 (strcasecmp(param, "lddMaxDist") != 0) || (lddMaxDist < 0)){
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'lddMaxDist'.\n", lineNr, paramFile);
+    Rprintf("ERROR: 'lddMaxDist' must be an integer, it must be >= lddMinDist.\n");
+    goto END_OF_FUNCTION;
+  }
+  if(lddMinDist > lddMaxDist){
+    Rprintf("ERROR: 'lddMaxDist' must be >= 'lddMinDist'.\n");
+    goto END_OF_FUNCTION;
+  }
+
+  
+  /* fullOutput: 'true' or 'false' value indicating whether MigClim should ouptut more (true) or less (false data). */
+  lineNr++;
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %s\n", param, tmpString) != 2) || 
+     (strcasecmp(param, "fullOutput") != 0) || ((strcmp(tmpString,"TRUE") != 0) && (strcmp(tmpString,"FALSE") != 0)) ){
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'fullOutput'.\n", lineNr, paramFile);
+    Rprintf("ERROR: value for 'fullOutput' must be either 'true' or 'false'.\n");
+    goto END_OF_FUNCTION;
+  }
+  if(strcmp(tmpString, "true") == 0) fullOutput = true;
+  if(strcmp(tmpString, "false") == 0) fullOutput = false;
+
+
+  /* replicateNb: number of times the MigClim simulation should be replicated. This must be an integer >= 1. */
+  lineNr++;
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %d\n", param, &replicateNb) != 2) || 
+                                (strcasecmp(param, "replicateNb") != 0) || (replicateNb < 1)){
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'replicateNb'.\n", lineNr, paramFile);
+    Rprintf("ERROR: value for 'replicateNb' must be an integer >= 1.\n");
+    goto END_OF_FUNCTION;
   }
   
- End_of_Routine:
-  /*
-  ** Close the file and return the status.
-  */
-  if (fp != NULL)
-  {
-    fclose (fp);
+  /* simulName: a string giving a name for the current MigClim run. */
+  lineNr++;
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %s\n", param, simulName) != 2) || 
+                        (strcasecmp(param, "simulName") != 0) || (strlen(simulName) == 0)){
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'simulName'.\n", lineNr, paramFile);
+    goto END_OF_FUNCTION;
   }
-  return (status);
+
+  /* randomGeneratorSeed: either "NA" or an unsigned integer [0,65535] to be used to see the random generator
+  **                      in MigClim. If "NA" was passed a value, then the random number generator is seeded
+  **                      with the current time. */
+  lineNr++;
+  if( (fgets(line, 1024, fp) == NULL) || (sscanf(line,"%s %s\n", param, &tmpString[0]) != 2) || 
+                                                (strcasecmp(param, "randomGeneratorSeed") != 0) ){
+    Rprintf("ERROR: line %d of file [%s] must contain value for 'replicateNb'.\n", lineNr, paramFile);
+    goto END_OF_FUNCTION;
+  }
+  /* If "NA" was passed as randomGeneratorSeed, then we set randomGeneratorSeed = -1, a code we use to indicate
+  ** that the random number generator should be seeded with the current time. */
+  if(strcasecmp(tmpString, "NA") == 0){
+    randomGeneratorSeed = 0;
+  }
+  else{
+    errno = 0;
+    tmpLong = strtol(&tmpString[0], &end, 10);
+    if( end == &tmpString[0] || ((tmpLong == LONG_MAX || tmpLong == LONG_MIN) && errno == ERANGE) ){
+      Rprintf("ERROR: failed to convert input string to long integer.\n");
+    } 
+    if( (tmpLong < 1) || (tmpLong > 65535) ){
+      Rprintf("ERROR: value for 'randomGeneratorSeed' must be either 'NA' or an integer in the range [1,65535].\n");
+      goto END_OF_FUNCTION;
+    }
+    randomGeneratorSeed = (unsigned int)tmpLong;
+  }
+
+
+  if(VERBOSE){
+    Rprintf("Input values summary:\n");
+    Rprintf("nrRows = [%d]\n", nrRows);
+    Rprintf("nrCols = [%d]\n", nrCols);
+    Rprintf("iniDist = [%s]\n", iniDist);
+    Rprintf("hsMap = [%s]\n", hsMap);
+    Rprintf("rcThreshold = [%d]\n", rcThreshold);
+    Rprintf("envChgSteps = [%d]\n", envChgSteps);
+    Rprintf("dispSteps = [%d]\n", dispSteps);
+    Rprintf("dispDist = [%d]\n", dispDist);
+    //Rprintf("dispKernel = [%].\n", );
+    Rprintf("barrier = [%s]\n", barrier);
+    if(barrierType == WEAK_BARRIER) Rprintf("barrierType = [weak]\n");
+    if(barrierType == STRONG_BARRIER) Rprintf("barrierType = [strong]\n");
+    Rprintf("iniMatAge = [%d]\n", iniMatAge);
+    Rprintf("fullMatAge = [%d]\n", fullMatAge);
+    //Rprintf("propaguleProd = [%lf].\n", );
+    Rprintf("lddFreq = [%lf]\n", lddFreq);
+    Rprintf("lddMinDist = [%d]\n", lddMinDist);
+    Rprintf("lddMaxDist = [%d]\n", lddMaxDist);
+    //Rprintf("fullOutput = [%s].\n", fullOutput);
+    Rprintf("replicateNb = [%d]\n", replicateNb);
+    Rprintf("simulName = [%s]\n", simulName);
+    if(randomGeneratorSeed == -1) Rprintf("randomGeneratorSeed = [NA]\n");
+    if(randomGeneratorSeed != -1) Rprintf("randomGeneratorSeed = [%d]\n", randomGeneratorSeed);
+  } 
+
+
+  /* If we reach this point, then no error has occured and we can this set the exit status value to 0. */
+  exitStatus = 0;
+
+
+END_OF_FUNCTION:
+  /* Close the file if it is open and return the status. */
+  if(fp != NULL) fclose (fp);
+  return (exitStatus);
 }
+/*####################################################################################################################*/
 
 
-/*
-** readMat: Read a data matrix from an ESRI ascii grid file.
-**
-** Note: This should eventually be merged with the above "mcReadMatrix"
-**       function, but we'll keep it separate for now just to make sure
-**       the basic functionality works fine.
-**
-** Parameters:
-**   - fName:  The name of the file to read from.
-**   - mat:    The matrix to put the data in (assumed to be large enough).
-**
-** Returns:
-**   - If everything went fine:  0.
-**   - Otherwise:               -1.
-*/
 
+
+/*###################################################################################################################### 
+### function readMat().
+### ******************
+### Read a data matrix from an ascii grid file.
+### Note: This should eventually be merged with the above "mcReadMatrix" function, but we'll keep it separate for now 
+### just to make sure the basic functionality works fine.
+###
+### Parameters:
+###  -> fName: The name of the file to read from.
+###  -> mat:   The matrix to put the data in (assumed to be large enough).
+###
+### Returns: 0 if everything went fine, -1 otherwise.
+######################################################################################################################*/
 int readMat (char *fName, int **mat)
 {
   int   i, j, intVal, status;
@@ -476,181 +467,304 @@ int readMat (char *fName, int **mat)
   status = 0;
   fp = NULL;
   
-  /*
-  ** Open the file for reading.
-  */
-  if ((fp = fopen(fName, "r")) == NULL)
-  {
+  /* Open the file for reading. */
+  if((fp = fopen(fName, "r")) == NULL){
     status = -1;
     Rprintf ("Can't open data file %s\n", fName);
-    goto End_of_Routine;
+    goto END_OF_FUNCTION;
   }
 
-  /*
-  ** Get the 'meta data'.
-  */
-  if ((fgets (line, 1024, fp) == NULL) ||
-      (sscanf (line, "%s %d\n", param, &intVal) != 2) ||
-      (strcasecmp (param, "ncols") != 0))
-  {
+  /* Get the 'meta data'. */
+  if((fgets (line, 1024, fp) == NULL) || 
+      (sscanf (line, "%s %d\n", param, &intVal) != 2) || 
+      (strcasecmp (param, "ncols") != 0)){
     status = -1;
     Rprintf ("'ncols' expected in data file %s.\n", fName);
-    goto End_of_Routine;
-  }
-  if (intVal != nrCols)
-  {
-    status = -1;
-    Rprintf ("Invalid number of columns in data file %s\n", fName);
-    goto End_of_Routine;
-  }
-  if ((fgets (line, 1024, fp) == NULL) ||
-      (sscanf (line, "%s %d\n", param, &intVal) != 2) ||
-      (strcasecmp (param, "nrows") != 0))
-  {
-    status = -1;
-    Rprintf ("'nrows' expected in data file %s\n", fName);
-    goto End_of_Routine;
-  }
-  if (intVal != nrRows)
-  {
-    status = -1;
-    Rprintf ("Invalid number of rows in data file %s.\n", fName);
-    goto End_of_Routine;
-  }
-  if ((fgets (line, 1024, fp) == NULL) ||
-      (sscanf (line, "%s %s\n", param, dblVal) != 2) ||
-      (strcasecmp (param, "xllcorner") != 0))
-  {
-    status = -1;
-    Rprintf ("'xllcorner' expected in data file %s\n", fName);
-    goto End_of_Routine;
-  }
-  xllCorner = strtod (dblVal, NULL);
-  if ((fgets (line, 1024, fp) == NULL) ||
-      (sscanf (line, "%s %s\n", param, dblVal) != 2) ||
-      (strcasecmp (param, "yllcorner") != 0))
-  {
-    status = -1;
-    Rprintf ("'yllcorner' expected in data file %s\n", fName);
-    goto End_of_Routine;
-  }
-  yllCorner = strtod (dblVal, NULL);
-  if ((fgets (line, 1024, fp) == NULL) ||
-      (sscanf (line, "%s %s\n", param, dblVal) != 2) ||
-      (strcasecmp (param, "cellsize") != 0))
-  {
-    status = -1;
-    Rprintf ("'cellsize' expected in data file %s\n", fName);
-    goto End_of_Routine;
-  }
-  cellSize = strtod (dblVal, NULL);
-  if ((fgets (line, 1024, fp) == NULL) ||
-      (sscanf (line, "%s %d\n", param, &noData) != 2) ||
-      (strcasecmp (param, "nodata_value") != 0))
-  {
-    status = -1;
-    Rprintf ("'NODATA_value' expected in data file %s\n", fName);
-    goto End_of_Routine;
+    goto END_OF_FUNCTION;
   }
   
-  /*
-  ** Read the values into the matrix.
-  */
-  for (i = 0; i < nrRows; i++)
-  {
-    for (j = 0; j < nrCols; j++)
-    {
-      if (fscanf(fp, "%d", &intVal) != 1)
-      {
-	    status = -1;
+  if(intVal != nrCols){
+    status = -1;
+    Rprintf ("Invalid number of columns in data file %s\n", fName);
+    goto END_OF_FUNCTION;
+  }
+  
+  if((fgets (line, 1024, fp) == NULL) ||
+      (sscanf (line, "%s %d\n", param, &intVal) != 2) ||
+      (strcasecmp (param, "nrows") != 0)){
+    status = -1;
+    Rprintf ("'nrows' expected in data file %s\n", fName);
+    goto END_OF_FUNCTION;
+  }
+
+  if (intVal != nrRows){
+    status = -1;
+    Rprintf ("Invalid number of rows in data file %s.\n", fName);
+    goto END_OF_FUNCTION;
+  }
+
+  if((fgets (line, 1024, fp) == NULL) ||
+      (sscanf (line, "%s %s\n", param, dblVal) != 2) ||
+      (strcasecmp (param, "xllcorner") != 0)){
+    status = -1;
+    Rprintf ("'xllcorner' expected in data file %s\n", fName);
+    goto END_OF_FUNCTION;
+  }
+  xllCorner = strtod(dblVal, NULL);
+  
+  if((fgets (line, 1024, fp) == NULL) ||
+      (sscanf (line, "%s %s\n", param, dblVal) != 2) ||
+      (strcasecmp (param, "yllcorner") != 0)){
+    status = -1;
+    Rprintf ("'yllcorner' expected in data file %s\n", fName);
+    goto END_OF_FUNCTION;
+  }
+  yllCorner = strtod(dblVal, NULL);
+  
+  if((fgets (line, 1024, fp) == NULL) ||
+      (sscanf (line, "%s %s\n", param, dblVal) != 2) ||
+      (strcasecmp (param, "cellsize") != 0)){
+    status = -1;
+    Rprintf ("'cellsize' expected in data file %s\n", fName);
+    goto END_OF_FUNCTION;
+  }
+  cellSize = strtod(dblVal, NULL);
+  
+  if((fgets (line, 1024, fp) == NULL) ||
+      (sscanf (line, "%s %d\n", param, &noData) != 2) ||
+      (strcasecmp (param, "nodata_value") != 0)){
+    status = -1;
+    Rprintf ("'NODATA_value' expected in data file %s\n", fName);
+    goto END_OF_FUNCTION;
+  }
+  
+  /* Read the values into the matrix. */
+  for(i = 0; i < nrRows; i++){
+    for(j = 0; j < nrCols; j++){
+
+      if(fscanf(fp, "%d", &intVal) != 1){
+        status = -1;
         Rprintf ("Invalid value in data file %s\n", fName);
-        goto End_of_Routine;
+        goto END_OF_FUNCTION;
       }
       mat[i][j] = intVal;
     }
     intVal = fscanf (fp, "\n");
   }
 
- End_of_Routine:
-  /*
-  ** Close the file and return the status.
-  */
-  if (fp != NULL)
-  {
-    fclose (fp);
-  }
+
+
+END_OF_FUNCTION:
+
+  /* Close the file and return the function's return status. */
+  if (fp != NULL) fclose (fp);
   return (status);
+  
 }
+/*####################################################################################################################*/
 
 
-/*
-** writeMat: Write a data matrix to file.
-**
-** Note: This should eventually be merged with the above "mcWriteMatrix"
-**       function, but we'll keep it separate for now just to make sure
-**       the basic functionality works fine.
-**
-** Parameters:
-**   - fName:  The name of the file to write to.
-**   - mat:    The data matrix to write.
-**
-** Returns:
-**   - If everything went fine:  0.
-**   - Otherwise:               -1.
-*/
 
+/*###################################################################################################################### 
+### function readMatrixFloat().
+### **************************
+### Reads float precision data from an ascii grid file (fName)
+ Reads a data matrix from an ascii grid file.
+### Note: This should eventually be merged with the above "mcReadMatrix" function, but we'll keep it separate for now 
+### just to make sure the basic functionality works fine.
+###
+### Parameters:
+###  -> fName:  A pointer to the name of the file to read from.
+###  -> matrix: a pointer to a vector of float values. The vector must be already declared and is assumed to be 
+###             large enough to store all values. More specifically, this is a pointer to the location in memory
+###             from where we must start writing values into the array.
+###
+### Returns: 0 if everything went fine, -1 if an error occured.
+######################################################################################################################*/
+int readMatrixFloat(char *fName, float *matrixToFill)
+{
+  int   i, j, intValue, exitStatus;
+  float floatValue;
+  char  line[1024], param[128], dblVal[128];
+  FILE *fp;
+
+  /* Set default value for 'exitStatus' to 1 (error occured) and fp to NULL. */
+  /* When fp is NULL we know that the file is closed, when it's non-NULL then the file is open. */
+  exitStatus = 1;
+  fp = NULL;
+  
+
+  /* Open input ascii grid file.
+  ** **************************
+  ** Make sure the file was opened successfully by checking that 'fp' is not NULL. */
+  fp = fopen(fName, "r");
+  if(fp == NULL){
+    Rprintf("Can't open data file %s\n", fName);
+    goto END_OF_FUNCTION;
+  }
+
+
+  /* Read ascii grid file metadata.
+  ** *****************************
+  ** Read the ascii grid's metedata located on top of the file. The metadata has the following structure:
+  **     NCOLS 321 
+  **     NROWS 408 
+  **     XLLCORNER 553437.5 
+  **     YLLCORNER 115087.5 
+  **     CELLSIZE 100 
+  **     NODATA_value -9999  
+  **
+  ** Note: fgets() returns NULL on error. sscanf() returns the nubmer of elements that were read and assiged
+  ** to pointer values specified as input. */
+
+  /* Read the first line of the file and check that it has the structure "NCOLS XXX". Make sure that the number
+  ** of columns of the matrix is correct, as all input matrices in MigClim must have the same size.*/
+  if((fgets(line,1024,fp) == NULL) || (sscanf(line,"%s %d\n",param,&intValue) != 2) || (strcasecmp(param,"ncols") != 0)){
+    Rprintf("'ncols' line expected in header of the input ascii grid file %s.\n", fName);
+    goto END_OF_FUNCTION;
+  }
+  if(intValue != nrCols){
+    Rprintf("Invalid number of columns in data file %s\n", fName);
+    goto END_OF_FUNCTION;
+  }
+  
+  /* Read the second line of the file. Check it has the structure "NROWS XXX". Check the number of rows is correct */
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line, "%s %d\n", param, &intValue) != 2) || (strcasecmp(param, "nrows") != 0)){
+    Rprintf("'nrows' expected in data file %s\n", fName);
+    goto END_OF_FUNCTION;
+  }
+  if (intValue != nrRows){
+    Rprintf("Invalid number of rows in data file %s.\n", fName);
+    goto END_OF_FUNCTION;
+  }
+
+  /* Read 3rd line of file. This line must have the structure 'XLLCORNER XXX'. */
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line, "%s %s\n", param, dblVal) != 2) || (strcasecmp(param, "xllcorner") != 0)){
+    Rprintf ("'xllcorner' expected in data file %s\n", fName);
+    goto END_OF_FUNCTION;
+  }
+  xllCorner = strtod(dblVal, NULL);
+  
+  /* Read 4th line of file. This line must have the structure 'YLLCORNER XXX'. */
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line, "%s %s\n", param, dblVal) != 2) || (strcasecmp(param, "yllcorner") != 0)){
+    Rprintf("'yllcorner' expected in data file %s\n", fName);
+    goto END_OF_FUNCTION;
+  }
+  yllCorner = strtod (dblVal, NULL);
+  
+  /* Read 5th line of file. This line must have the structure 'CELLSIZE XXX'. */
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line, "%s %s\n", param, dblVal) != 2) || (strcasecmp(param, "cellsize") != 0)){
+    Rprintf("'cellsize' expected in data file %s\n", fName);
+    goto END_OF_FUNCTION;
+  }
+  cellSize = strtod(dblVal, NULL);
+  
+  /* Read 6th line of file. This line must have the structure 'NODATA_value XXX'. */
+  if((fgets(line, 1024, fp) == NULL) || (sscanf(line, "%s %d\n", param, &noData) != 2) || (strcasecmp(param, "nodata_value") != 0)){
+    Rprintf("'NODATA_value' expected in data file %s\n", fName);
+    goto END_OF_FUNCTION;
+  }
+  
+  /* Read the ascii grid values into the matrix. */
+  for(i = 0; i < nrRows; i++){
+    for(j = 0; j < nrCols; j++){
+
+      /* On the input file stream, read the next element - it must be a float - and store it in the matrix to fill. */
+      if(fscanf(fp, "%f", &floatValue) != 1){
+        Rprintf("Invalid value in data file %s\n", fName);
+        goto END_OF_FUNCTION;
+      }
+      matrixToFill[(i * nrCols) + j] = floatValue;
+    }
+
+    /* When we reach the end of the line, we need to read the newline character so that we move past it in our
+    ** file input stream. */
+    floatValue = fscanf(fp, "\n");
+  }
+
+
+  /* If we reach this point, then no error has occured and we can this set the exit status value to 0. */
+  exitStatus = 0;
+
+
+END_OF_FUNCTION:
+
+  /* Close the file and return the function's return status. */
+  if(fp != NULL) fclose(fp);
+  return(exitStatus);
+  
+}
+/*####################################################################################################################*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*###################################################################################################################### 
+### function writeMat() - Write a data matrix to file.
+### *************************************************
+### Note: This should eventually be merged with the above "mcReadMatrix" function, but we'll keep it separate for now 
+### just to make sure the basic functionality works fine.
+###
+### Parameters:
+###  -> fName: The name of the file to write to.
+###  -> mat:   The data matrix to write.
+###
+### Returns: 0 if everything went fine, -1 otherwise.
+######################################################################################################################*/
 int writeMat (char *fName, int **mat)
 {
-  int   i, j, status;
+  int i, j, status;
   FILE *fp;
 
   status = 0;
   fp = NULL;
   
-  /*
-  ** Open the file for writing.
-  */
-  if ((fp = fopen(fName, "w")) == NULL)
-  {
-    status = -1;
+  /* Open the file for writing. */
+  if((fp = fopen(fName, "w")) == NULL){
     Rprintf ("Can't open data file %s for writing.\n", fName);
-    goto End_of_Routine;
+    status = -1;
+    goto END_OF_FUNCTION;
   }
 
-  /*
-  ** Write the 'meta data'.
-  */
-  fprintf (fp, "ncols %d\n", nrCols);
-  fprintf (fp, "nrows %d\n", nrRows);
-  fprintf (fp, "xllcorner %.9f\n", xllCorner);
-  fprintf (fp, "yllcorner %.9f\n", yllCorner);
-  fprintf (fp, "cellsize %.9f\n", cellSize);
-  fprintf (fp, "NODATA_value %d\n", noData);
+  /* Write the 'meta data'. */
+  fprintf(fp, "ncols %d\n", nrCols);
+  fprintf(fp, "nrows %d\n", nrRows);
+  fprintf(fp, "xllcorner %.9f\n", xllCorner);
+  fprintf(fp, "yllcorner %.9f\n", yllCorner);
+  fprintf(fp, "cellsize %.9f\n", cellSize);
+  fprintf(fp, "NODATA_value %d\n", noData);
   
-  /*
-  ** Write the data to file.
-  */
-  for (i = 0; i < nrRows; i++)
-  {
-    for (j = 0; j < nrCols; j++)
-    {
+  /* Write the data to file. */
+  for(i = 0; i < nrRows; i++){
+    for(j = 0; j < nrCols; j++){
       fprintf(fp, "%d ", mat[i][j]);
     }
-    fprintf (fp, "\n");
+    fprintf(fp, "\n");
   }
 
-  /*
-  ** Close the file and return the status.
-  */
- End_of_Routine:
-  if (fp != NULL)
-  {
-    fclose (fp);
-  }
+
+
+END_OF_FUNCTION:
+  
+  /* Close the file and return the status. */
+  if (fp != NULL) fclose(fp);
   return (status);
+
 }
+/*####################################################################################################################*/
 
-
-/*
-** EoF: file_io.c
-*/

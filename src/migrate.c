@@ -182,23 +182,26 @@ void mcMigrate (char **paramFile, int *nrFiles)
     noDispersal[i] = (int *)malloc(nrCols * sizeof (int));
   }
   
-  /* Replicate the simulation replicateNb times. If replicateNb > 1 then the simulation's output names */
-  /* will be "simulName1", "simulName2", etc... */
+  
+  /* Replicate the simulation replicateNb times. If replicateNb > 1 then the simulation's
+  ** output names will be "simulName1", "simulName2", etc... */
   for(RepLoop = 1; RepLoop <= replicateNb; RepLoop++){
     
     /* Remember the current time */
     startTime = time(NULL);
 
-    /* If replicateNb > 1 then we need to change the simulation name */
-    /* Note: sprinf(): puts a string into a variable, in this case the variable is 'simulName2' */ 
+    /* If replicateNb > 1 then we need to change the simulation name
+    ** Note: sprinf() puts a string into a variable, in this case the variable is 'simulName2'.
+    **       snprintf() does the same thing but one must pass a maximum value for the string (here 128) and if
+    **       the string becomes longer than that it gets truncated. */ 
     if(replicateNb == 1){
-      strcpy(simulName2, simulName);
+      strncpy(simulName2, simulName, 128);
     }
     else if(replicateNb > 1){
-      sprintf(simulName2, "%s%d", simulName, RepLoop);           
+      snprintf(simulName2, 128, "%s%d", simulName, RepLoop);
     }
 
-    
+
     /* Load and prepare the data. */
     
     /* Species initial distribution */
@@ -217,7 +220,7 @@ void mcMigrate (char **paramFile, int *nrFiles)
     if(useBarrier){
       sprintf(fileName, "%s.asc", barrier);
       if(readMat(fileName, barriers) == -1){
-        /* If the readMat function returns -1, it means an error occured and we terminate the MigClim run. */
+        /* If the readMat function returns -1, it means an error occurred and we terminate the MigClim run. */
         *nrFiles = -1;
         goto END_OF_FUNCTION;
       }

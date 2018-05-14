@@ -1,20 +1,21 @@
-/*
-** migrate.c: Implementation of the main MigClim function.
-** Wim Hordijk & Robin Engler:  Last modified: 11 May 2012 (RE)
-*/
+/*###################################################################################################################### 
+### migrate.c: Implementation of the main MigClim function.
+### Wim Hordijk & Robin Engler:  Last modified: 11 May 2012 (RE)
+###
+### Authors: Robin Engler and Wim Hordijk.
+### Last modified: 16 Oct 2017.
+######################################################################################################################*/
 
 #include "migclim.h"
 
 
-/*
-** Global variables, so we won't have to pass too many arguments all the time.
-*/
-int     nrRows, nrCols, envChgSteps, dispSteps, dispDist, iniMatAge,
-        fullMatAge, rcThreshold, barrierType, lddMinDist, lddMaxDist,
-        replicateNb;
-double *dispKernel, *propaguleProd, lddFreq;
-char    iniDist[128], hsMap[128], simulName[128], barrier[128];
-bool    useBarrier, fullOutput;
+/* Declare a number of global variables, so we won't have to pass too many arguments all the time. */
+int          nrRows, nrCols, envChgSteps, dispSteps, dispDist, iniMatAge, fullMatAge, rcThreshold, barrierType, 
+             lddMinDist, lddMaxDist, replicateNb;
+float        *dispKernel; 
+double       *propaguleProd, lddFreq;
+char         iniDist[128], hsMap[128], simulName[128], barrier[128];
+bool         useBarrier, fullOutput, singleKernelMode;
 typedef struct _pixel
 {
   int row, col;
@@ -22,23 +23,23 @@ typedef struct _pixel
 pixel rndPixel;
 
 
-/*
-** Function prototypes.
-*/
+/* Function prototypes. */
 void mcRandomPixel   (pixel *pix);
 bool mcSinkCellCheck (pixel pix, int **curState, int **habSuit);
 
 
-/*
-** mcMigrate: The core of the MigClim method. Perform the main migration steps.
-**            Parameter values are read from a file.
-**
-** Parameters:
-**   - paramFile: The name of the parameter file.
-**   - nrFiles:   A pointer to an integer to contain the number of output
-**                files created. A value of -1 is returned if an error occurred.
-*/
 
+/*###################################################################################################################### 
+### Function mcMigrate() - the core of the MigClim method.
+### *****************************************************
+### Perform the main migration steps. The input parameter values are read from a file that is written to disk by the
+### R code part of the MigClim R package.
+###
+### Parameters:
+###  -> paramFile: The name of the parameter file.
+###  -> nrFiles:   A pointer to an integer to contain the number of output files created. A value of -1 is returned 
+###                if an error occurred.
+######################################################################################################################*/
 void mcMigrate (char **paramFile, int *nrFiles)
 {
   int     i, j, RepLoop, envChgStep, dispStep, loopID, simulTime;  
@@ -47,14 +48,11 @@ void mcMigrate (char **paramFile, int *nrFiles)
   FILE   *fp=NULL, *fp2=NULL;
   double  lddSeedProb;
   time_t  startTime;
-  /*
-  ** These variables are not (yet) used.
-  **
-  ** int vegResTime, seedBankResTime, *seedBank, tSinceDecol, tWhenCol;
-  */
   
-  /*
-  ** Pixel counter variables. These variables allow us to record interesting
+  /* Variables that were not ported to the R version of MigClim.
+  ** int vegResTime, seedBankResTime, *seedBank, tSinceDecol, tWhenCol; */
+  
+  /* Pixel counter variables. These variables allow us to record interesting
   ** values to be printed into the output file:
   **
   ** ==> Many of these aren't used yet. <==
@@ -142,66 +140,89 @@ void mcMigrate (char **paramFile, int *nrFiles)
   noDispersal = NULL;
   propaguleProd = NULL;
   dispKernel = NULL;
-  if(mcInit(*paramFile) == -1){ /* Reads the "_param.txt" file */
+  singleKernelMode = true;
+
+  /* Reads the "_param.txt" file */
+  if(mcInit(*paramFile) == -1){ 
     *nrFiles = -1;
-    goto End_of_Routine;
+    goto END_OF_FUNCTION;
   }
   
-  /* We'll use 'srand' and 'rand' here, as 'srandom' and 'random' do not work on Windows :-( */
-  srand (time (NULL));
+
+  /* Set seed for the random number generator. 
+  ** ****************************************
+  ** This is no longer done in the C code, as we now set the seed directly in the MigClim.migrate() R function.
+  ** This is possible because we now use the "unif_rand()" function from the Rmath.h library, instead of the 
+  ** regular "rand()" function of C. 
+  ** The problem with using "rand()" is that R also has its own "rand()" C functions and this creates problems
+  ** when trying to set the seed for the random number generator (the seed is set for the original rand() function
+  ** but when calling rand() the function from R is used and the previously set seed is ignored.)
+  ** An alternative to rand()/srand() would be to use random()/srandom(), which would avoid the colliding with R's
+  ** rand() function, but apparently random() does not work on Windows machines. */
+  if(VERBOSE){
+    Rprintf("Verbose mode: Test of R's random number generator:\n");
+    Rprintf("Verbose mode: random number [%lf]\n", UNIF01);
+    Rprintf("Verbose mode: random number [%lf]\n", UNIF01);
+    Rprintf("Verbose mode: random number [%lf]\n", UNIF01);
+  }
+  
+
 
   /* Allocate the necessary memory. */
-  currentState = (int **)malloc (nrRows * sizeof (int *));
-  habSuitability = (int **)malloc (nrRows * sizeof (int *));
-  barriers = (int **)malloc (nrRows * sizeof (int *));
-  pixelAge = (int **)malloc (nrRows * sizeof (int *));
-  noDispersal = (int **)malloc (nrRows * sizeof (int *));
+  currentState = (int **)malloc(nrRows * sizeof (int *));
+  habSuitability = (int **)malloc(nrRows * sizeof (int *));
+  barriers = (int **)malloc(nrRows * sizeof (int *));
+  pixelAge = (int **)malloc(nrRows * sizeof (int *));
+  noDispersal = (int **)malloc(nrRows * sizeof (int *));
   for(i = 0; i < nrRows; i++){
-    currentState[i] = (int *)malloc (nrCols * sizeof (int));
-    habSuitability[i] = (int *)malloc (nrCols * sizeof (int));
-    barriers[i] = (int *)malloc (nrCols * sizeof (int));
-    pixelAge[i] = (int *)malloc (nrCols * sizeof (int));
-    noDispersal[i] = (int *)malloc (nrCols * sizeof (int));
+    currentState[i] = (int *)malloc(nrCols * sizeof (int));
+    habSuitability[i] = (int *)malloc(nrCols * sizeof (int));
+    barriers[i] = (int *)malloc(nrCols * sizeof (int));
+    pixelAge[i] = (int *)malloc(nrCols * sizeof (int));
+    noDispersal[i] = (int *)malloc(nrCols * sizeof (int));
   }
   
-  /* Replicate the simulation replicateNb times. If replicateNb > 1 then the
-  ** simulation's output names are "simulName1", "simulName2", etc... */
+  /* Replicate the simulation replicateNb times. If replicateNb > 1 then the simulation's output names */
+  /* will be "simulName1", "simulName2", etc... */
   for(RepLoop = 1; RepLoop <= replicateNb; RepLoop++){
     
-	/* Remember the current time */
+    /* Remember the current time */
     startTime = time(NULL);
 
-    /* If replicateNb > 1 then we need to change the simulation name */	  
+    /* If replicateNb > 1 then we need to change the simulation name */
+    /* Note: sprinf(): puts a string into a variable, in this case the variable is 'simulName2' */ 
     if(replicateNb == 1){
       strcpy(simulName2, simulName);
     }
     else if(replicateNb > 1){
-      sprintf(simulName2, "%s%d", simulName, RepLoop);           /* sprinf(): puts a string into variable simulName2 */
+      sprintf(simulName2, "%s%d", simulName, RepLoop);           
     }
 
     
     /* Load and prepare the data. */
     
     /* Species initial distribution */
-    sprintf(fileName, "%s.asc", iniDist);                        /* sprinf(): puts a string into variable fileName */
+    sprintf(fileName, "%s.asc", iniDist);
     if(readMat(fileName, currentState) == -1){
       *nrFiles = -1;
-      goto End_of_Routine;
+      goto END_OF_FUNCTION;
     }
     
     /* Barrier options */
     for(i = 0; i < nrRows; i++){
       for(j = 0; j < nrCols; j++){
-	    barriers[i][j] = 0;
+        barriers[i][j] = 0;
       }
     }
     if(useBarrier){
       sprintf(fileName, "%s.asc", barrier);
       if(readMat(fileName, barriers) == -1){
-	    *nrFiles = -1;                                           /* if readMat() return -1, an error occured  */
-	    goto End_of_Routine;
+        /* If the readMat function returns -1, it means an error occured and we terminate the MigClim run. */
+        *nrFiles = -1;
+        goto END_OF_FUNCTION;
       }
     } 
+
     /* Filter the barrier matrix in two ways:
     **  -> reclass any value < 0 as 0 (this is to remove NoData values of -9999).
     **  -> set the cells with NoData in 'currentState' to NoData in 'barriers'
@@ -228,22 +249,21 @@ void mcMigrate (char **paramFile, int *nrFiles)
     ** the species is absent, pixels get a value of 0. */
     for(i = 0; i < nrRows; i++){
       for(j = 0; j < nrCols; j++){
-	    if(currentState[i][j] == 1){
-		  pixelAge[i][j] = fullMatAge;
-	    }
-	    else{
-	      pixelAge[i][j] = 0;
-	    }
+        if(currentState[i][j] == 1){
+          pixelAge[i][j] = fullMatAge;
+        }
+        else{
+          pixelAge[i][j] = 0;
+        }
       }
     }
     
     
     /* The "no dispersal" matrix.
-    ** This Matrix will keep track of the species distribution under the
-    ** "no dispersal" scenario. */  
+    ** This Matrix will keep track of the species distribution under the "no dispersal" scenario. */  
     for(i = 0; i < nrRows; i++){
       for (j = 0; j < nrCols; j++){
-	    noDispersal[i][j] = currentState[i][j];
+        noDispersal[i][j] = currentState[i][j];
       }
     }
         
@@ -269,13 +289,13 @@ void mcMigrate (char **paramFile, int *nrFiles)
     ** nrTotSeedBankRecover = 0; */
 
     
-    /* Count the number of initially colonized pixels (i.e. initial species distribution)
-    ** as well as the number of empty (absence) cells. */
+    /* Count the number of initially colonized pixels (i.e. initial species distribution) as well as the number
+    ** of empty (absence) cells. */
     for(i = 0; i < nrRows; i++){
-      for(j = 0; j < nrCols; j++){
-	    if(currentState[i][j] == 1) nrInitial++;
-        if(currentState[i][j] == 0) nrAbsent++;
-      }
+    for(j = 0; j < nrCols; j++){
+      if(currentState[i][j] == 1) nrInitial++;
+      if(currentState[i][j] == 0) nrAbsent++;
+    }
     }
     nrColonized = nrInitial;
     nrNoDispersal = nrInitial;
@@ -284,284 +304,260 @@ void mcMigrate (char **paramFile, int *nrFiles)
     
     /* Write the initial state to the data file. */
     sprintf(fileName, "%s/%s_stats.txt", simulName, simulName2);
-    if((fp = fopen (fileName, "w")) != NULL){
-      fprintf (fp, "envChgStep\tdispStep\tstepID\tunivDispersal\tNoDispersal\toccupied\tabsent\tstepColonized\tstepDecolonized\tstepLDDsuccess\n");
-      fprintf (fp, "0\t0\t1\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", nrUnivDispersal, nrNoDispersal,
-	           nrColonized, nrAbsent, nrStepColonized, nrStepDecolonized, nrStepLDDSuccess);
+    if((fp = fopen(fileName, "w")) != NULL){
+      fprintf(fp, "envChgStep\tdispStep\tstepID\tunivDispersal\tNoDispersal\toccupied\tabsent\tstepColonized\tstepDecolonized\tstepLDDsuccess\n");
+      fprintf(fp, "0\t0\t1\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", nrUnivDispersal, nrNoDispersal, nrColonized, nrAbsent, 
+              nrStepColonized, nrStepDecolonized, nrStepLDDSuccess);
     }
     else{
       *nrFiles = -1;
       Rprintf ("Could not open statistics file for writing.\n");
-      goto End_of_Routine;
+      goto END_OF_FUNCTION;
     }
     
     
     
-    /* **************************************************************** */
-    /* Simulate plant dispersal and migration (the core of the method). */
-    /* **************************************************************** */
+    /* Simulate dispersal and migration - the core of the method.
+    ** **********************************************************
+    ** Here we start the loop through all environmental change steps. If simulation is run without change
+    ** in habitat suitability over time, then this loop runs only once. */
     Rprintf("Running MigClim simulation %s.\n", simulName2);
-    
-    /* Start of environmental change step loop (if simulation is run without change in environment this loop runs only once). */
     for(envChgStep = 1; envChgStep <= envChgSteps; envChgStep++){
-	  
+    
       /* Print the current environmental change iteration. */
-      Rprintf ("  %d...\n", envChgStep);
+      Rprintf("  %d...\n", envChgStep);
 
       /* Load the habitat suitability layer for the current envChgStep. */
-      sprintf (fileName, "%s%d.asc", hsMap, envChgStep);
-      if (readMat (fileName, habSuitability) == -1){
-	    *nrFiles = -1;
-	    goto End_of_Routine;
+      sprintf(fileName, "%s%d.asc", hsMap, envChgStep);
+      if(readMat(fileName, habSuitability) == -1){
+        *nrFiles = -1;
+        goto END_OF_FUNCTION;
       }
       
-      /* if the user chose a rcThreshold > 0, reclass the habitat suitability into 0 or 1000
-      ** if rcThreshold == 0 then suitability values are left unchanged. */
+      /* if the user chose a rcThreshold > 0, reclass the habitat suitability values into 0 or 1000.
+      ** if rcThreshold == 0 then habitat suitability values are left unchanged. */
       if(rcThreshold > 0){
-	    for(i = 0; i < nrRows; i++){
-	      for(j = 0; j < nrCols; j++){
-	        if(habSuitability[i][j] < rcThreshold){
-	          habSuitability[i][j] = 0;
-	        }
-	        else{
-	          habSuitability[i][j] = 1000;
-	        }
-	      }
-	    }
+        for(i = 0; i < nrRows; i++){
+        for(j = 0; j < nrCols; j++){
+          if(habSuitability[i][j] < rcThreshold) habSuitability[i][j] = 0; else habSuitability[i][j] = 1000;
+        }
+        }
       }
       
       /* Filter the habitat suitability matrix in three ways:
       **  -> replace any value < 0 by 0 (this removes NoData).
       **  -> set habitat suitability to 0 where barrier = 1.
-      **  -> set habitat suitability values to NoData where barrier = NoData. 
-      ** and also  */
+      **  -> set habitat suitability values to NoData where barrier = NoData. */
       mcFilterMatrix(habSuitability, barriers, true, true, true);
       
       
-      /* Set the values that will keep track of pixels colonized during the next
-      ** climate change loop.
-      ** "loopID" is the value that will be given to the pixel colonized
-      ** during the current loop. The pixels being decolonized during the
-      ** current loop will be given a value of "-loopID". The limits in
-      ** terms of number of dispersal events and environmental change
-      ** events is the following:
-      **  - Without environmental change, the maximum number of dispStep
-      **    is 29'500.
-      **  - With environmental change, the maximum number of dispStep is
-      **    98, the number of environmental change loops is limited to 250.
+      /* Set the values that will keep track of pixels colonized during the next climate change loop.
+      ** "loopID" is the value that will be given to the pixel colonized during the current loop. The pixels 
+      ** being decolonized during the current loop will be given a value of "-loopID". The limits in terms of 
+      ** number of dispersal events and environmental change events is the following:
+      **  - Without environmental change, the maximum number of dispStep is 29'500.
+      **  - With environmental change, the maximum number of dispStep is 98, the number of environmental change 
+      **    loops is limited to 250.
       ** The coding for the loopID is as follows: envChgStep * 100 + dispStep. */
-      if(envChgStep == 0){
-        loopID = 1;
-      }
-      else{
-	    loopID = envChgStep * 100;
-      }
+      if(envChgStep == 0) loopID = 1; else loopID = envChgStep * 100;
       
       
-      /* "Unlimited" and "no dispersal" scenario pixel count. Here we compute the number of pixels
-      ** that would be colonized if dispersal was unlimited or null. This is simply the sum of all
-      ** potentially suitable habitats */
+      /* "Unlimited" and "no dispersal" scenario pixel count. Here we compute the number of pixels that would be 
+      ** colonized if dispersal was unlimited or null. This is simply the sum of all potentially suitable habitats */
       nrUnivDispersal = mcUnivDispCnt(habSuitability);
       updateNoDispMat(habSuitability, noDispersal, &nrNoDispersal);
 
       /* Reset number of decolonized cells within current dispersal step pixel counter */
-	  nrStepDecolonized = 0;
-	    
-      /* Update for temporarily resilient pixels. */
+      nrStepDecolonized = 0;
+      
+
+      /* Update for temporarily resilient pixels.
+      ** **************************************** */
       for(i = 0; i < nrRows; i++){
-	    for(j = 0; j < nrCols; j++){
-	      
-	      /* Udate non-suitable pixels. If a pixel turned unsuitable, we update its status to "Temporarily Resilient". */
-	      if((habSuitability[i][j] == 0) && (currentState[i][j] > 0)){
-	        
-	        /* If the user selected TemporaryResilience==T, then the pixel is set to "Temporary Resilient" status. */
-	        if(tempResilience == true){
-	          currentState[i][j] = 29900;
-	        }
-	        else{
-	          /* If not temporary resilience was specified, then the pixel is set to "decolonized" status. */
-	          currentState[i][j] = -1 - loopID;
-	          pixelAge[i][j] = 0;
-	          /* NOTE: Later we can add "Vegetative" and "SeedBank" resilience options at this location. */
-	        }
-	        
-	        /* The number of decolonized cells within current step is increased by one */
-	        nrStepDecolonized++;
-	      }
-	    }
+      for(j = 0; j < nrCols; j++){
+      
+        /* Update unsuitable pixels. If a pixel turned unsuitable, we update its status to "Temporarily Resilient". */
+        if((habSuitability[i][j] == 0) && (currentState[i][j] > 0)){
+        
+          /* If the user enabled the use of temporary resilience status, then the cell's status is set to
+          ** "Temporary Resilient". Otherwise the cell's status is set to "decolonized".
+          ** NOTE: Later we can add "Vegetative" and "SeedBank" resilience options at this location. */
+          if(tempResilience == true){
+            currentState[i][j] = 29900;
+          }
+          else{
+            currentState[i][j] = -1 - loopID;
+            pixelAge[i][j] = 0;
+          }
+          
+          /* The counter of decolonized cells within current step is increased by one */
+          nrStepDecolonized++;
+        }
+      }
       }
 
       
-      /* *************************************** */
-      /* Dispersal event step loop starts here.  */
-      /* *************************************** */
+      /* Dispersal event loop starts here.
+      ** ******************************** */
       for(dispStep = 1; dispStep <= dispSteps; dispStep++){
-	    
-	    /* Set the value of "loopID" for the current iteration of the dispersal loop. */
-	    loopID++;
-          
-	    /* Reset pixel counters that count pixels within the current loop. */
-	    nrStepColonized = 0;
-	    nrStepLDDSuccess = 0;
-	    if(dispStep > 1) nrStepDecolonized = 0;
-
-	    /* Currently unused variables:
-	    ** nrStepVegResilient = 0;
-	    ** nrStepSeedBank = 0;
-	    ** nrStepVegResRecover = 0;
-	    ** nrStepSeedBankRecover = 0; */
-          
-	    /* Source cell search: Can the sink pixel be colonized? There are four
-	    ** conditions to be met for a sink pixel to become colonized:
-	    **   1. Sink pixel is currently suitable and not already colonised.
-	    **   2. Sink pixel is within dispersal distance of an already colonised
-	    **      and mature pixel.
-	    **   3. Source pixel has reached dispersal maturity.
-	    **   4. There is no obstacle (barrier) between the pixel to be colonised
-	    **      (sink pixel) and the pixel that is already colonised (source
-	    **      pixel).
-	    **
-	    ** Loop through the cellular automaton. */
-	    for(i = 0; i < nrRows; i++){
-	      for(j = 0; j < nrCols; j++){
-	        
-		    /* Reset variables. */
-	        habIsSuitable = false;
-	        cellInDispDist = false;
-	        
-	        /* 1. Test whether the pixel is a suitable sink (i.e., its habitat
-	        **    is suitable, it's unoccupied and is not on a barrier or filter
-	        **    pixel). */
-	        if((habSuitability[i][j] > 0) && (currentState[i][j] <= 0)) habIsSuitable = true;
-
-	        /* 2. Test whether there is a source cell within the dispersal
-	        **    distance. To be more time efficient, this code runs only if
-	        **    the answer to the first question is positive. Additionally,
-	        **    if there is a source cell within dispersion distance and if
-	        **    a barrier was asked for, then we also check that there is no
-	        **    barrier between this source cell and the sink cell (this
-	        **    verification is carried out in the "SearchSourceCell"
-	        **    function). */
-	        if(habIsSuitable){
-		      /* Now we search if there is a suitable source cell to colonize the sink cell. */
-	          if (mcSrcCell (i, j, currentState, pixelAge, loopID, habSuitability[i][j], barriers)) cellInDispDist = true;
-	        }
-	        
-	        /* Update pixel status. */
-	        if(habIsSuitable && cellInDispDist){
-	          
-		      /* Only if the 2 conditions are fullfilled the cell's status is set to colonised. */
-	          currentState[i][j] = loopID;
-	          nrStepColonized++;
-	          
-	          /* If the pixel was in seed bank resilience state, then we
-	          ** update the corresponding counter. Currently not used.
-	          ** if (pixelAge[i][j] == 255) nrStepSeedBank--; */
-	          
-	          /* Update "age" value. We do this only now because we needed the old "age" value just before 
-	          ** to determine whether a pixel was in "Decolonized" or "SeedBank resilience" status. */
-	          pixelAge[i][j] = 0;
-	        }
-	      }
-	    }
-        
-	    /* If the LDD frequence is larger than zero, perform it. */
-	    if(lddFreq > 0.0){
-	      
-		  /* Loop through the entire cellular automaton. */
-	      for(i = 0; i < nrRows; i++){
-	        for(j = 0; j < nrCols; j++){
-	          
-		      /* Check if the pixel is a source cell (i.e. is it colonised since at least 1 dispersal Loop) 
-	          ** and check if the pixel has reached dispersal maturity. */
-	          if((currentState[i][j]) > 0 && (currentState[i][j] != loopID)){
-	    	    if(pixelAge[i][j] >= iniMatAge){
-	    	  
-		    	  /* Set the probability of generating an LDD event. This
-	    	      ** probability is weighted by the age of the cell. */
-	    	      if(pixelAge[i][j] >= fullMatAge){
-	    	        lddSeedProb = lddFreq;
-	    	      }
-	    	      else{
-	    	        lddSeedProb = lddFreq * propaguleProd[pixelAge[i][j] - iniMatAge];
-	    	      }
-	    	  
-	    	      /* Now we can try to generate a LDD event with the calculated probability. */
-	    	      if(UNIF01 < lddSeedProb || lddSeedProb == 1.0){
-	    	        
-		    	    /* Randomly select a pixel within the distance "lddMinDist - lddMaxDist". */
-	    	        mcRandomPixel (&rndPixel);
-	    	        rndPixel.row = rndPixel.row + i;
-	    	        rndPixel.col = rndPixel.col + j;
-	    	        
-	    	        /* Now we check if this random cell is a suitable sink cell.*/
-	    	        if(mcSinkCellCheck (rndPixel, currentState, habSuitability)){
-	    	          
-		    	      /* if condition is true, the pixel gets colonized.*/
-	    	          currentState[rndPixel.row][rndPixel.col] = loopID;
-	    	          nrStepColonized++;
-	    	          nrStepLDDSuccess++;
-	    	          
-	    	          /* If the pixel was in seed bank resilience state, then we
-	    	          ** update the corresponding counter. Currently not used.
-	    	          ** if (pixelAge[rndPixel.row][rndPixel.col] == 255) nrStepSeedBank--;  */
-	    	    
-	    	          /* Reset pixel age. */
-	    	          pixelAge[rndPixel.row][rndPixel.col] = 0;
-	    	        }
-	    	      }
-	    	      
-	    	    }
-	          }
-	        }
-	      }
-	    }
+      
+        /* Set the value of "loopID" for the current iteration of the dispersal loop. */
+        loopID++;
             
-	    /* Update pixel age: At the end of a dispersal loop we want to
-	    ** increase the "age" of each colonized pixel.
-	    **
-	    ** Reminder: pixel "age" structure is as follows:
-	    **   0 = Pixel is either "Absent", "Decolonized" or has just been
-	    **       "Colonized" during this dispersal step.
-	    **   1 to 250 = Pixel is in "Colonized" or "Temporarily Resilient"
-	    **       status. The value indicates the number of "dispersal events
-	    **       (usually years) since when the pixel was colonized.
-	    **   255 = Pixel is in "SeedBank Resilience" state. */
-	    for(i = 0; i < nrRows; i++){
-	      for(j = 0; j < nrCols; j++){
-	        
-		    /* If the pixel is in "Colonized" or "Temporarily Resilient" state, update it's age value. */
-	        if(currentState[i][j] > 0) pixelAge[i][j] += 1;
+        /* Reset pixel counters that count pixels within the current loop. */
+        nrStepColonized = 0;
+        nrStepLDDSuccess = 0;
+        if(dispStep > 1) nrStepDecolonized = 0;
 
-	        /* If a pixel is in "Temporarily Resilient" state, we also increase its "currentState" value by 1
-	        ** so that the pixels gains 1 year of "Temporarily Resilience" age. */
-	        if (currentState[i][j] >= 29900) currentState[i][j] += 1;
+        /* Currently unused variables:
+        ** nrStepVegResilient = 0;
+        ** nrStepSeedBank = 0;
+        ** nrStepVegResRecover = 0;
+        ** nrStepSeedBankRecover = 0; */
+            
+        /* Source cell search: Can the sink pixel be colonized? There are four
+        ** conditions to be met for a sink pixel to become colonized:
+        **   1. Sink pixel is currently suitable and not already colonised.
+        **   2. Sink pixel is within dispersal distance of an already colonised
+        **      and mature pixel.
+        **   3. Source pixel has reached dispersal maturity.
+        **   4. There is no obstacle (barrier) between the pixel to be colonised
+        **      (sink pixel) and the pixel that is already colonised (source
+        **      pixel).
+        **
+        ** Loop through the cell matrix. */
+        for(i = 0; i < nrRows; i++){
+        for(j = 0; j < nrCols; j++){
+            
+          /* Reset variables. */
+          habIsSuitable = false;
+          cellInDispDist = false;
+            
+          /* 1. Test whether the pixel is a suitable sink cell (i.e., its habitat is suitable, it is unoccupied,
+          **    and it is not on a barrier or filter pixel). */
+          if((habSuitability[i][j] > 0) && (currentState[i][j] <= 0)) habIsSuitable = true;
 
-	      }
-	    }
-        
-	    /* Update pixel counters. */
-	    nrColonized = nrColonized + nrStepColonized - nrStepDecolonized;
-	    nrAbsent = nrAbsent - nrStepColonized + nrStepDecolonized;
-	    nrTotColonized += nrStepColonized;
-	    nrTotDecolonized += nrStepDecolonized;
-	    nrTotLDDSuccess += nrStepLDDSuccess;
-	    /* Currently unused variables:
-	    ** nrTotVegResRecover += nrStepVegResRecover;
-	    ** nrTotSeedBankRecover += nrStepSeedBankRecover; */
+          /* 2. Test whether there is a source cell within the dispersal distance. To be more time efficient, this 
+          **    code runs only if the cell's habitat is indeed suitable. Additionally, if there is a source cell 
+          **    within dispersal distance and if a barrier was asked for, then we also check that there is no
+          **    barrier between this source cell and the sink cell (this verification is carried out in the 
+          **    "SearchSourceCell" function). */
+          if(habIsSuitable){
+            /* Now we search if there is a suitable source cell to colonize the sink cell. */
+            if(mcSrcCell(i, j, currentState, pixelAge, loopID, habSuitability[i][j], barriers)) cellInDispDist = true;
+          }
+            
+          /* Update pixel status. */
+          if(habIsSuitable && cellInDispDist){
+            
+            /* Only if the 2 conditions are fullfilled the cell's status is set to colonised. */
+            currentState[i][j] = loopID;
+            nrStepColonized++;
+              
+            /* If the pixel was in seed bank resilience state, then we update the corresponding counter. 
+            ** Currently not used.
+            ** if (pixelAge[i][j] == 255) nrStepSeedBank--;
+            */
+              
+            /* Update the cell's "age" value. We do this only now because we needed the old "age" value just  
+            ** before to determine whether a pixel was in "Decolonized" or "SeedBank resilience" status. */
+            pixelAge[i][j] = 0;
+          }
+        }
+        }
           
-	    /* Write current iteration data to the statistics file. */
-	    fprintf(fp, "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", envChgStep, dispStep, loopID, nrUnivDispersal,
-	    	    nrNoDispersal, nrColonized, nrAbsent, nrStepColonized, nrStepDecolonized, nrStepLDDSuccess);
-	    	 
-	    /* If the user has requested full output, also write the current state matrix to file. */
-	    if(fullOutput){
-	      sprintf (fileName, "%s/%s_step_%d.asc", simulName, simulName2, loopID);
-	      if(writeMat (fileName, currentState) == -1){
-	        *nrFiles = -1;
-	        goto End_of_Routine;
-	      }
-	    }
+        /* If the LDD frequence is larger than zero, we run long distance dispersal events for all suitable cells. */
+        if(lddFreq > 0.0){
+          /* Loop through the entire cell matrix. */
+          for(i = 0; i < nrRows; i++){
+          for(j = 0; j < nrCols; j++){
+              
+            /* Check if the pixel is a source cell (i.e. is it colonised since at least 1 dispersal Loop) 
+            ** and check if the pixel has reached dispersal maturity. */
+            if((currentState[i][j]) > 0 && (currentState[i][j] != loopID)){
+            if(pixelAge[i][j] >= iniMatAge){
+            
+              /* Set the probability of generating an LDD event. This
+              ** probability is weighted by the age of the cell. */
+              if(pixelAge[i][j] >= fullMatAge){
+                lddSeedProb = lddFreq;
+              }
+              else{
+                lddSeedProb = lddFreq * propaguleProd[pixelAge[i][j] - iniMatAge];
+              }
+            
+              /* Now we can try to generate a LDD event with the calculated probability. */
+              if(UNIF01 < lddSeedProb || lddSeedProb == 1.0){
+                  
+                /* Randomly select a pixel within the distance "lddMinDist - lddMaxDist". */
+                mcRandomPixel(&rndPixel);
+                rndPixel.row = rndPixel.row + i;
+                rndPixel.col = rndPixel.col + j;
+                
+                /* Now we check if this random cell is a suitable sink cell.*/
+                if(mcSinkCellCheck (rndPixel, currentState, habSuitability)){
+                    
+                  /* if condition is true, the pixel gets colonized.*/
+                  currentState[rndPixel.row][rndPixel.col] = loopID;
+                  nrStepColonized++;
+                  nrStepLDDSuccess++;
+                    
+                  /* If the pixel was in seed bank resilience state, then we update the corresponding counter.
+                  ** Currently not used.
+                  ** if (pixelAge[rndPixel.row][rndPixel.col] == 255) nrStepSeedBank--;
+                  */
+              
+                  /* Reset pixel age. */
+                  pixelAge[rndPixel.row][rndPixel.col] = 0;
+                }
+              }
+                
+            }
+            }
+          }
+          }
+        }
+              
+        /* Update pixel age: At the end of a dispersal loop we increase the "age" of each colonized pixel.
+        ** Reminder: pixel "age" structure is as follows:
+        **   0     = pixel is either "Absent", "Decolonized" or has just been "Colonized" during current dispersal step.
+        **   1-250 = Pixel is in "Colonized" or "Temporarily Resilient" status. The value indicates the number of 
+        **           "dispersal events" (usually years) since when the pixel was colonized.
+        **   255   = Pixel is in "SeedBank Resilience" state. */
+        for(i = 0; i < nrRows; i++){
+        for(j = 0; j < nrCols; j++){
+          /* If the pixel is in "Colonized" or "Temporarily Resilient" state, update it's age value. */
+          if(currentState[i][j] > 0) pixelAge[i][j] += 1;
+
+          /* If a pixel is in "Temporarily Resilient" state, we also increase its "currentState" value by 1
+          ** so that it gains 1 year of "Temporarily Resilience" age. */
+          if (currentState[i][j] >= 29900) currentState[i][j] += 1;
+        }
+        }
+          
+        /* Update pixel counters. */
+        nrColonized = nrColonized + nrStepColonized - nrStepDecolonized;
+        nrAbsent = nrAbsent - nrStepColonized + nrStepDecolonized;
+        nrTotColonized += nrStepColonized;
+        nrTotDecolonized += nrStepDecolonized;
+        nrTotLDDSuccess += nrStepLDDSuccess;
+        /* Currently unused variables:
+        ** nrTotVegResRecover += nrStepVegResRecover;
+        ** nrTotSeedBankRecover += nrStepSeedBankRecover; */
+            
+        /* Write current iteration data to the statistics file. */
+        fprintf(fp, "%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", envChgStep, dispStep, loopID, nrUnivDispersal,
+                nrNoDispersal, nrColonized, nrAbsent, nrStepColonized, nrStepDecolonized, nrStepLDDSuccess);
+           
+        /* If the user has requested full output, also write the current state matrix to file. */
+        if(fullOutput){
+          sprintf(fileName, "%s/%s_step_%d.asc", simulName, simulName2, loopID);
+          if(writeMat(fileName, currentState) == -1){
+            *nrFiles = -1;
+            goto END_OF_FUNCTION;
+          }
+        }
+
       } /* END OF: dispStep */
     
       
@@ -570,24 +566,23 @@ void mcMigrate (char **paramFile, int *nrFiles)
       **   -> CurrentState_Matrix = 29'900 to 29'999. Increases by 1 at each year.
       **   -> Age_Matrix has a positive value. */
       for (i = 0; i < nrRows; i++){
-	    for (j = 0; j < nrCols; j++){
-	      if (currentState[i][j] >= 29900){
-	        currentState[i][j] = dispSteps - loopID - 1;
-	        pixelAge[i][j] = 0;
-	      }
-	    }
+      for (j = 0; j < nrCols; j++){
+        if (currentState[i][j] >= 29900){
+          currentState[i][j] = dispSteps - loopID - 1;
+          pixelAge[i][j] = 0;
+        }
+      }
       }
     
     } /* END OF: envChgStep loop */
     Rprintf("All dispersal steps completed. Final output in progress...\n");
   
     
-    /* Update currentState matrix for pixels that are suitable but
-    ** could not be colonized due to dispersal limitations.
-    ** These pixels are assigned a value of 30'000 */
+    /* Update currentState matrix for pixels that are suitable but could not be colonized due to dispersal.
+    ** limitations. These pixels are assigned a value of 30'000 */
     for(i = 0; i < nrRows; i++){
       for(j = 0; j < nrCols; j++){
-	    if((habSuitability[i][j] > 0) && (currentState[i][j] <= 0)) currentState[i][j] = 30000;
+        if((habSuitability[i][j] > 0) && (currentState[i][j] <= 0)) currentState[i][j] = 30000;
       }
     }
   
@@ -595,7 +590,7 @@ void mcMigrate (char **paramFile, int *nrFiles)
     sprintf(fileName, "%s/%s_raster.asc", simulName, simulName2);
     if(writeMat (fileName, currentState) == -1){
       *nrFiles = -1;
-      goto End_of_Routine;
+      goto END_OF_FUNCTION;
     }
   
     /* Write summary output to file. */
@@ -604,13 +599,13 @@ void mcMigrate (char **paramFile, int *nrFiles)
     if((fp2 = fopen (fileName, "w")) != NULL){
       fprintf(fp2, "simulName\tiniCount\tnoDispCount\tunivDispCount\toccupiedCount\tabsentCount\ttotColonized\ttotDecolonized\ttotLDDsuccess\trunTime\n");
       fprintf(fp2, "%s\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\n", simulName2, nrInitial, nrNoDispersal, nrUnivDispersal,
-	          nrColonized, nrAbsent, nrTotColonized, nrTotDecolonized, nrTotLDDSuccess, simulTime);
+            nrColonized, nrAbsent, nrTotColonized, nrTotDecolonized, nrTotLDDSuccess, simulTime);
       fclose (fp2);
     }
     else{
       *nrFiles = -1;
       Rprintf ("Could not write summary output to file.\n");
-      goto End_of_Routine;
+      goto END_OF_FUNCTION;
     }  
   
     /* Close the data file. */
@@ -625,9 +620,9 @@ void mcMigrate (char **paramFile, int *nrFiles)
  
   
  
- End_of_Routine:
+ END_OF_FUNCTION:
   
-  /* Close the data file. */
+  /* Close open data file if needed. */
   if(fp != NULL) fclose (fp);
 
   /* Free the allocated memory. */
@@ -664,32 +659,33 @@ void mcMigrate (char **paramFile, int *nrFiles)
 
 
 
-
-/*
-** mcRandomPixel: Select a random pixel from a central point (0;0) and within a
-**                radius of at least lddMinDist and at most lddMaxDist.
-**
-** Parameters:
-**   - pix:     A pointer to the pixel data structure to put the row and col in.
-*/
-
+/*###################################################################################################################### 
+### function mcRandomPixel().
+### ************************
+### Select a random pixel from a central point (0;0) and within a radius of at least lddMinDist and at most lddMaxDist.
+### Note that 'lddMinDist' and 'lddMaxDist' are defined as global variables for the MigClim code and are therefore 
+### already available without needing to pass them to the function. It is OK to have these two values as global 
+### variables because their value is never modified (they are fixed for a given run of MigClim).
+###
+### Parameters:
+###  -> pix: A pointer to the pixel data structure to put the row and col in.
+###
+### Returns: 
+######################################################################################################################*/ 
 void mcRandomPixel (pixel *pix)
 {
-  double rndDist, rndAngle;
   
-  /*
-  ** Select a random distance between lddMinDist and lddMaxDist, and a random
-  ** angle between 0 and 2*pi.
-  */
+  /* Select a random distance between lddMinDist and lddMaxDist, and a random angle between 0 and 2*pi. */
+  double rndDist, rndAngle;
   rndDist = (UNIF01 * (lddMaxDist - lddMinDist)) + lddMinDist;
   rndAngle = UNIF01 * 6.283185;
     
-  /*
-  ** Convert distance and angle into pixel row and column values.
-  */
-  pix->row = (int)(rndDist * cos (rndAngle));
-  pix->col = (int)(rndDist * sin (rndAngle));
+  /* Convert distance and angle into pixel row and column values. */
+  pix->row = (int)(rndDist * cos(rndAngle));
+  pix->col = (int)(rndDist * sin(rndAngle));
+
 }
+/*####################################################################################################################*/ 
 
 
 

@@ -57,7 +57,7 @@ void genClust (int *nrow, int *ncol, int *ncls, int *niter, int *thrs,
   prevState = NULL;
   suitability = NULL;
   barrier = NULL;
-  srand (time(NULL));
+  srand(time(NULL));
   
   /*
   ** Allocate the necessary memory.

@@ -44,7 +44,7 @@ void mcMigrate (char **paramFile, int *nrFiles)
 {
   int     i, j, RepLoop, envChgStep, dispStep, loopID, simulTime;  
   bool    advOutput, habIsSuitable, cellInDispDist, tempResilience;
-  char    fileName[128], simulName2[128];
+  char    fileName[256], simulName2[128];
   FILE   *fp=NULL, *fp2=NULL;
   double  lddSeedProb;
   time_t  startTime;
@@ -453,7 +453,7 @@ void mcMigrate (char **paramFile, int *nrFiles)
           /* Update pixel status. */
           if(habIsSuitable && cellInDispDist){
             
-            /* Only if the 2 conditions are fullfilled the cell's status is set to colonised. */
+            /* Only if the 2 conditions are full-filled the cell's status is set to colonized. */
             currentState[i][j] = loopID;
             nrStepColonized++;
               

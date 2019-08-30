@@ -474,7 +474,7 @@ int readMat (char *fName, int **mat)
     goto END_OF_FUNCTION;
   }
 
-  /* Get the 'meta data'. */
+  /* Get the meta data. */
   if((fgets (line, 1024, fp) == NULL) || 
       (sscanf (line, "%s %d\n", param, &intVal) != 2) || 
       (strcasecmp (param, "ncols") != 0)){

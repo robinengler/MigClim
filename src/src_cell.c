@@ -1,5 +1,5 @@
 /*
-** src_cell.c: Function for finding potential souce cells for a given sink cell.
+** src_cell.c: Function for finding potential source cells for a given sink cell.
 **
 ** Wim Hordijk    Last modified: 03 October 2011
 **
@@ -33,7 +33,7 @@ bool mcSrcCell (int i, int j, int **curState, int **pxlAge, int loopID, int habS
   double probCol, rnd, dtmp;
   bool   sourceFound;
 
-  // For now let's set these paramters to fixed values. Later we can implement them as variables.
+  // For now let's set these parameters to fixed values. Later we can implement them as variables.
   pxlSizeFactor = 1;
   sourceFound = false;
 

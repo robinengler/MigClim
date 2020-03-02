@@ -1,14 +1,14 @@
-########################################################################################################################
+####################################################################################################
 ### R functions for the MigClim R package.
 ### Authors: Robin Engler and Wim Hordijk.
 ###
-########################################################################################################################
+####################################################################################################
 
-########################################################################################################################
+####################################################################################################
 ### MigClim.migrate.
 ### ***************
-### Initializes the MigClim method by writing the parameter values passed by the user to a file on disk, and then
-### returns this file.
+### Initializes the MigClim method by writing the parameter values passed by the user to a file 
+### on disk, and then returns this file.
 ###
 ### Input parameters:
 ###  -> iniDist:     string giving the full name and path of the species initial distribution.
@@ -39,22 +39,15 @@ MigClim.migrate <- function(iniDist=NULL, hsMap=NULL, rcThreshold=0,
                             lddFreq=0.0, lddMinDist=0, lddMaxDist=0,
                             simulName='MigClimTest', replicateNb=1, overWrite=FALSE,
                             testMode=FALSE, fullOutput=FALSE, keepTempFiles=FALSE, 
-                            randomGeneratorSeed=NULL)
-{
-
-    ### Load required libraries.
-    ### ***********************
-    # Verify that the user has installed the "raster" and "SDMTools" library on his machine.
-    # Note: this is no longer needed, R does this automatically.
-    #if(require(raster, quietly=T)==F) stop("Please install 'raster' on your computer and try again.")
-    #if(require(SDMTools, quietly=T)==F) stop("Please install 'SDMTools' on your computer and try again.")
+                            randomGeneratorSeed=NULL){
 
 
     ### Input data check.
     ### ****************
-    # Verify reclassification threshold values. The reclassification threshold must be an integer number in the
-    # range [0-1000].
-    if(!is.numeric(rcThreshold)) stop("INPUT ERROR:'rcThreshold' must be an integer number in the range [0:1000].")
+    # Verify the reclassification threshold value:
+    #  -> must be single, integer number.
+    #  -> must be in the range [0:1000].
+    if(!is.numeric(rcThreshold)) stop("INPUT ERROR: 'rcThreshold' must be an integer number in the range [0:1000].")
     if(rcThreshold < 0 | rcThreshold > 1000) stop("INPUT ERROR: 'rcThreshold' must be an integer number in the range [0:1000].")
     if(rcThreshold %% 1 != 0) stop("'rcThreshold' must be an integer number.")
     #
@@ -68,8 +61,8 @@ MigClim.migrate <- function(iniDist=NULL, hsMap=NULL, rcThreshold=0,
 
 
     ### Dispersal kernel data (dispKernel).
-    # dispKernel must be either a vector of values in the range [0-1], or a string giving the basename of the 
-    # raster(s) to be used as dispersal kernels.
+    # dispKernel must be either a vector of values in the range [0-1], or a string giving the 
+    # basename of the raster(s) to be used as dispersal kernels.
     #
     # Case 1: dispersal kernel is a vector of numeric values. In this case we check that all values are in the
     #         range [0-1].
@@ -77,29 +70,29 @@ MigClim.migrate <- function(iniDist=NULL, hsMap=NULL, rcThreshold=0,
         if(any(dispKernel > 1) | any(dispKernel <= 0)) stop("Values of 'dispKernel' must be numbers > 0 and <= 1")
         dispKernelLength = length(dispKernel)
 
-    # Case 2: dispersal kernel is a series of raster grids, where each grid contains the PDisp value associated to
-    #         pixels for a given distance class. E.g. the first raster gives the PDisp values of pixels for the 
-    #         distance class 1, the second raster gives the values for the distance class 2, etc. This method allows
-    #         to have a custom kernel for each cell in the landscape.
+    # Case 2: dispersal kernel is a series of raster grids, where each grid contains the PDisp 
+    #         value associated to pixels for a given distance class. E.g. the first raster gives 
+    #         the PDisp values of pixels for distance class 1, the second raster gives the values 
+    #         for distance class 2, etc. This method allows to have a custom kernel for each cell 
+    #         in the landscape.
     } else if(is.character(dispKernel)){
 
         if(is.null(dispKernelMapNb)) stop("ERROR: when 'dispKernel' is given as a series of dispersal kernel ",
                                            "ascii files, then a value for 'dispKernelMapNb' must be provided.")
         dispKernelLength = dispKernelMapNb
 
+        # TEMPORARY: DISABLE CHECK.
         # Verify that all dispersal kernel ascii grid files are available on disk.
-        for(i in 1:dispKernelLength){
-
-            # Test that the file exists on disk.
-            fileName = paste(dispKernel, i, ".asc", sep='')
-            if(!file.exists(fileName)) stop("ERROR: cannot find input file [", fileName, "].", sep='')
-            
-            # Test that the file can be loaded as a raster object.
-            rst = try(raster(fileName), silent=T)
-            if(class(rst)[1] != "RasterLayer") stop("ERROR: input raster [", fileName, "] could not be read.", 
-                                                    " The raster file must be in ascii grid (.asc) format")
-            rm(fileName, rst)
-        }
+        #for(i in 1:dispKernelLength){
+        #    # Test that the file exists on disk.
+        #    fileName = paste(dispKernel, i, ".asc", sep='')
+        #    if(!file.exists(fileName)) stop("ERROR: cannot find input file [", fileName, "].", sep='')
+        #    
+        #    # Test that the file can be loaded as a raster object.
+        #    rst = try(raster(fileName), silent=T)
+        #    if(class(rst)[1] != "RasterLayer") stop("ERROR: input raster [", fileName, "] could not be read.", 
+        #                                            " The raster file must be in ascii grid (.asc) format")
+        #}
 
     } else{
         stop("ERROR: 'dispKernel' must either be a vector of numeric values in the range [0-1], ", 
@@ -107,12 +100,15 @@ MigClim.migrate <- function(iniDist=NULL, hsMap=NULL, rcThreshold=0,
     }
 
 
-    # Verify the seed value for the random number generator. If the user provided a seed for the random number 
-    # generator, the seed must be an integer in the range [0,32767], the range of "integer" numbers (16 bits).
+    # Verify the seed value for the random number generator. If the user provided a seed for the
+    # random number generator, the seed must be an integer in the range [0,32767] - the range of 
+    # 16 bit 'integer' numbers.
     if(!is.null(randomGeneratorSeed)){
-        if( !is.numeric(randomGeneratorSeed) || randomGeneratorSeed %% 1 != 0 || randomGeneratorSeed < 1 || 
-                                                                                 randomGeneratorSeed > 65535){
-            stop("ERROR: input value for 'randomGeneratorSeed' must be an integer number in the range [1,65535].")
+        if(!is.numeric(randomGeneratorSeed) || 
+           randomGeneratorSeed %% 1 != 0 || 
+           randomGeneratorSeed < 1 || 
+           randomGeneratorSeed > 65535){
+            stop("ERROR: 'randomGeneratorSeed' must be an integer number in the range [1,65535].")
         }
         set.seed(randomGeneratorSeed)
     } else{
@@ -141,10 +137,12 @@ MigClim.migrate <- function(iniDist=NULL, hsMap=NULL, rcThreshold=0,
         if(lddMaxDist < lddMinDist) stop("INPUT ERROR: 'lddMaxDist' must be >= 'lddMinDist'.")
     } else lddMinDist = lddMaxDist = 0
 
+    
     # Verify that 'replicateNb' is an integer number >= 1.
     if(!is.numeric(replicateNb)) stop("INPUT ERROR: 'replicateNb' must be a numeric, integer, value.")
     if(replicateNb < 1 | replicateNb %% 1 != 0) stop("INPUT ERROR: 'replicateNb' must be an integer value >= 1.")
 
+    
     # Verify that logical parameter have logical values (TRUE or FALSE).
     if(!is.logical(overWrite))     stop("INPUT ERROR: 'overWrite' must be either TRUE or FALSE.")
     if(!is.logical(testMode))      stop("INPUT ERROR: 'testMode' must be either TRUE or FALSE.")
@@ -298,12 +296,14 @@ MigClim.migrate <- function(iniDist=NULL, hsMap=NULL, rcThreshold=0,
 
 
     # Verify that all the input raster files exist.
-    if(!file.exists(paste(iniDist,RExt,sep=""))) stop(paste("The 'iniDist' file '", iniDist, RExt, "' could not be found.\n", sep=""))
-    for(J in 1:envChgSteps){
-        if(!file.exists(paste(hsMap,J,RExt,sep=""))) stop(paste("The 'hsMap' file '", hsMap, J, RExt, "' could not be found.\n",
-                                                                "The naming convention for hsMap files is 'hsMap basename + 1', 'hsMap basename + 2', etc...\n",
-                                                                "e.g. if you set 'hsMap='habitatSuitMap'' then your first hsMap file must be named 'habitatSuitMap1'.\n",
-                                                                "the following hsMap file must be named 'habitatSuitMap2', 'habitatSuitMap3' and so on.\n", sep=""))
+    if(!file.exists(paste(iniDist,RExt,sep=""))) stop('missing input file: ', iniDist, RExt)
+    for(i in 1:envChgSteps){
+    
+        # TEMPORARY: DISABLE CHECK.
+        #if(!file.exists(paste(hsMap,i,RExt,sep=""))) stop(paste("The 'hsMap' file '", hsMap, i, RExt, "' could not be found.\n",
+        #                                                        "The naming convention for hsMap files is 'hsMap basename + 1', 'hsMap basename + 2', etc...\n",
+        #                                                        "e.g. if you set 'hsMap='habitatSuitMap'' then your first hsMap file must be named 'habitatSuitMap1'.\n",
+        #                                                        "the following hsMap file must be named 'habitatSuitMap2', 'habitatSuitMap3' and so on.\n", sep=""))
     }
     if(!is.null(barrier)) if(!file.exists(paste(barrier,RExt,sep=""))) stop(paste("The 'barrier' file '", barrier, RExt, "' could not be found.\n", sep=""))
 
@@ -331,9 +331,12 @@ MigClim.migrate <- function(iniDist=NULL, hsMap=NULL, rcThreshold=0,
         rm(rst,rst2)
     }
 
-
-    ### If the input format is ascii grid, then we check that the files are located in the working directory.
-    ### If not, we copy the files to the working directory.
+    
+    
+    # Raster data (ascii grid)
+    # ***********************
+    # Verify that all input raster files can be found in current working directory.
+    # If not, we copy the files to the working directory.
     if (RExt==".asc"){
         if(iniDist!=basename(iniDist)){
             file.copy(from=paste(iniDist,".asc",sep=""), to=paste(basename(iniDist),".asc",sep=""), overwrite=T)
@@ -341,11 +344,11 @@ MigClim.migrate <- function(iniDist=NULL, hsMap=NULL, rcThreshold=0,
             if(exists("CreatedASCII")) CreatedASCII = c(paste(iniDist,".asc",sep=""), CreatedASCII) else CreatedASCII = paste(iniDist,".asc",sep="")
         }
         if(hsMap!=basename(hsMap)){
-            for(J in 1:envChgSteps){
-                file.copy(from=paste(hsMap,J,".asc",sep=""), to=paste(basename(hsMap),J,".asc",sep=""), overwrite=T)
+            for(i in 1:envChgSteps){
+                file.copy(from=paste(hsMap,i,".asc",sep=""), to=paste(basename(hsMap),i,".asc",sep=""), overwrite=T)
                 if(exists("CreatedASCII")){
-                    CreatedASCII = c(paste(basename(hsMap),J,".asc",sep=""), CreatedASCII)
-                } else CreatedASCII = paste(basename(hsMap),J,".asc",sep="")
+                    CreatedASCII = c(paste(basename(hsMap),i,".asc",sep=""), CreatedASCII)
+                } else CreatedASCII = paste(basename(hsMap),i,".asc",sep="")
     		}
     		hsMap = basename(hsMap)
     	}
@@ -358,22 +361,23 @@ MigClim.migrate <- function(iniDist=NULL, hsMap=NULL, rcThreshold=0,
         }
     }
 
-
-    # Verify that all ascii grid files have a correct structure and that their NoData value (if any) is set to -9999
-    noDataVal = getNoDataValue(paste(iniDist,".asc",sep=""))
+    # Verify that all ascii grid files have a correct structure and that their NoData value, 
+    # if any, is set to -9999.
+    noDataVal = get_nodata_value(paste(iniDist,".asc",sep=""))
     if(!is.na(noDataVal)){
         if(noDataVal == "ErrorInFile") stop("INPUT ERROR: 'iniDist' ascii grid has incorrect structure.")
         if(noDataVal >= 0)             stop("INPUT ERROR: 'iniDist' ascii grid must have 'NoData' values < 0.")
     }
     for(i in 1:envChgSteps){
-    	noDataVal = getNoDataValue(paste(hsMap,i,".asc",sep=""))
-        if(!is.na(noDataVal)){
-            if(noDataVal == "ErrorInFile") stop("INPUT ERROR: one or more 'hsMap' ascii grid files have incorrect structure.")
-            if(noDataVal >= 0)             stop("INPUT ERROR: all 'hsMap' ascii grid files must have 'NoData' values set to a number < 0.")
-        }
+        # TEMPORARY: DISABLE CHECK.
+    	#noDataVal = get_nodata_value(paste0(hsMap, i, '.asc'))
+        #if(!is.na(noDataVal)){
+        #    if(noDataVal == "ErrorInFile") stop("INPUT ERROR: one or more 'hsMap' ascii grid files have incorrect structure.")
+        #    if(noDataVal >= 0)             stop("INPUT ERROR: all 'hsMap' ascii grid files must have 'NoData' values set to a number < 0.")
+        #}
     }
     if(!is.null(barrier)){
-        noDataVal = getNoDataValue(paste(barrier,".asc",sep=""))
+        noDataVal = get_nodata_value(paste(barrier,".asc",sep=""))
         if(!is.na(noDataVal)){
             if(noDataVal == "ErrorInFile") stop("INPUT ERROR: 'barrier' ascii grid has incorrect structure.")
             if(noDataVal >= 0)             stop("INPUT ERROR: 'barrier' ascii grid must have 'NoData' values < 0.")
@@ -382,24 +386,22 @@ MigClim.migrate <- function(iniDist=NULL, hsMap=NULL, rcThreshold=0,
     rm(noDataVal)
 
 
-    # Verify that all raster have exactly the same dimensions and that they contain apropriate values.
-    # "iniDist" and "barrier" should contain only values of 0 or 1. "hsMap" should contain only values in the range [0:1000].
-    #
-    rst = raster(paste(iniDist,".asc",sep=""))
+    # Verify that all raster have exactly the same dimensions and that they contain appropriate 
+    # values: 'iniDist' and 'barrier' should contain only values of 0 or 1. 'hsMap' should contain 
+    # only values in the range [0:1000].
+    rst = raster(paste(iniDist,'.asc',sep=''))
     nrRows = nrow(rst)
     nrCols = ncol(rst)
     if(any(is.na(match(raster::unique(rst), c(0,1))))) stop("INPUT ERROR: the 'iniDist' raster should contain only values of 0 or 1.")
-    #if(dataType(rst)!="INT2U" & dataType(rst)!="INT1U") stop("INPUT ERROR: the 'iniDist' layer must contain integer values (8 or 16-bit unsigned integers). The R 'dataType' code for 8-bit and 16-bit unsigned integers is 'INT1U' and 'INT2U'.")
-    for(J in 1:envChgSteps){
-        rst = raster(paste(hsMap,J,".asc",sep=""))
-        #if(dataType(rst)!="INT2U") stop("INPUT ERROR: all habitat suitability rasters must contain integer values (16-bit unsigned integers) in the range 0 to 1000. The R 'dataType' code for 16-bit unsigned integers is 'INT2U'.")
-        if(nrow(rst)!=nrRows | ncol(rst)!=nrCols) stop("INPUT ERROR: not all your rasters input data have the same dimensions.")
-        if(cellStats(rst,"min")<0 | cellStats(rst,"max")>1000) stop("INPUT ERROR: all habitat suitability rasters must have values in the range [0:1000].")
-        rm(rst)
+    for(i in 1:envChgSteps){
+        # TEMPORARY: DISABLE CHECK.
+        #rst = raster(paste(hsMap,i,'.asc',sep=''))
+        #if(nrow(rst) != nrRows | ncol(rst) != nrCols) stop("INPUT ERROR: not all your rasters input data have the same dimensions.")
+        #if(cellStats(rst,'min') < 0 | cellStats(rst,'max') > 1000) stop("INPUT ERROR: all habitat suitability rasters must have values in the range [0:1000].")
+        #rm(rst)
     }
     if(!is.null(barrier)){
         rst = raster(paste(barrier,".asc",sep=""))
-        #if(dataType(rst)!="INT2U" & dataType(rst)!="INT1U") stop("INPUT ERROR: the 'barrier' layer must contain integer values (8 or 16-bit unsigned integers). The R 'dataType' code for 8-bit and 16-bit unsigned integers is 'INT1U' and 'INT2U'.")
         if(nrow(rst)!=nrRows | ncol(rst)!=nrCols) stop("INPUT ERROR: not all your rasters input data have the same dimensions.")
         if(any(is.na(match(raster::unique(rst), c(0,1))))) stop("INPUT ERROR: the 'barrier' raster should contain only values of 0 or 1.")
         rm(rst)
@@ -408,10 +410,10 @@ MigClim.migrate <- function(iniDist=NULL, hsMap=NULL, rcThreshold=0,
 
 
     # Create output directory.
-    if(file.exists(simulName) == T) unlink(simulName, recursive=T)
-    if(dir.create(simulName) == F) stop("unable to create a '", simulName,"'subdirectory in the current workspace. ", 
-                                        "Make sure the '", simulName,"'subdirectory does not already exists and that ", 
-                                        "you have write permission in the current workspace.")
+    if(file.exists(simulName)) unlink(simulName, recursive=T)
+    if(!dir.create(simulName)) stop("unable to create a '", simulName,"'subdirectory in the current workspace. ", 
+                                     "Make sure the '", simulName,"'subdirectory does not already exists and that ", 
+                                     "you have write permission in the current workspace.")
 
     # Write the "simulName_params.txt" file to disk.
     fileName = paste(simulName, "/", simulName, "_params.txt", sep="")
@@ -439,104 +441,134 @@ MigClim.migrate <- function(iniDist=NULL, hsMap=NULL, rcThreshold=0,
     write(paste("simulName", simulName), file=fileName, append=T)
     write(paste("randomGeneratorSeed", randomGeneratorSeed), file=fileName, append=T)
 
-
-    # Call the C function.
-    if(!testMode){
-        cat("Starting simulation for ", simulName, "...\n")
-        migrate = .C("mcMigrate", paste(simulName, "/", simulName, "_params.txt", sep=""), nr=integer(1))
+    
+    # End of test mode.
+    # ****************
+    # If the command is running in test mode, exit here.
+    if(testMode){
+       cat("### Test for", simulName, "completed sucessfully.\n")
+       # Delete the created output directory and exit.
+       unlink(simulName, recursive=T)
+       return(envChgSteps)
     }
 
+    
+    # Call the main migclim C function.
+    # ********************************
+    cat("Starting simulation for ", simulName, "...\n")
+    input_prefix = file.path(simulName, simulName)
+    migrate = .C('mcMigrate', paste0(input_prefix, '_params.txt'), nr=integer(1))
 
-    # If ASCII grids were created in the MigClim.init() function, then we
-    # delete them here (unless the user has set "keepTempFiles = TRUE".
+    # If ascii grids were created by the MigClim.init() function, then we delete them here, unless 
+    # the user has set "keepTempFiles = TRUE".
     if(keepTempFiles) rm(CreatedASCII)
     if(exists("CreatedASCII")){
-        for (J in 1:length(CreatedASCII)) unlink(CreatedASCII[J])
+        for (i in 1:length(CreatedASCII)) unlink(CreatedASCII[i])
         rm(CreatedASCII)
     }
 
-
+    
+    # Create average output across all replicates.
+    # *******************************************
     # If the user has set replicateNb > 1 then we generate a final, averaged, output.
     # The individual outputs are conserved, though.
-    if(replicateNb > 1 & !testMode){
+    if(replicateNb > 1){
 
-        #Average the "_stats.txt" files
-        statsFile = read.table(paste(simulName,"/",simulName,"1_stats.txt",sep=""), header=T, as.is=T)
-        for(J in 2:replicateNb){
-            tempFile = read.table(paste(simulName,"/",simulName, J,"_stats.txt",sep=""), header=T, as.is=T)
-            statsFile = statsFile + tempFile
-            rm(tempFile)
-        }
-        statsFile = round(statsFile/replicateNb, 2)
-        write.table(statsFile, file=paste(simulName,"/",simulName,"_stats.txt",sep=""), quote=F, row.names=F, sep="\t")
+        # Average '_stats.txt' files.
+        merged_table = merge_files(prefix       = paste0(input_prefix, '_'), 
+                                   suffix       = '_stats.txt', 
+                                   replicate_nb = replicateNb, 
+                                   merge_mode   = 'sum')
+        write.table(round(merged_table/replicateNb, 2), 
+                    file=paste0(input_prefix, '_stats.txt'), quote=F, row.names=F, sep='\t')
 
-        #Average the "_summary.txt" files
-        statsFile = read.table(paste(simulName,"/",simulName,"1_summary.txt",sep=""), header=T, as.is=T)
-        for(J in 2:replicateNb){
-            tempFile = read.table(paste(simulName,"/",simulName, J,"_summary.txt",sep=""), header=T, as.is=T)
-            statsFile = rbind(statsFile, tempFile)
-            rm(tempFile)
-        }
-        statsFile[replicateNb+1,1] = simulName
-        statsFile[replicateNb+1,2:ncol(statsFile)] = round(apply(statsFile[1:replicateNb,2:ncol(statsFile)], 2, mean), 2)
-        write.table(statsFile, file=paste(simulName,"/",simulName,"_summary.txt",sep=""), quote=F, row.names=F, sep="\t")
-        rm(statsFile)
+        # Average '_summary.txt' files
+        merged_table = merge_files(prefix       = paste0(input_prefix, '_'), 
+                                   suffix       = '_summary.txt', 
+                                   replicate_nb = replicateNb, 
+                                   merge_mode   = 'append')
+        merged_table[replicateNb + 1, 1] = simulName
+        merged_table[replicateNb + 1, 2:ncol(merged_table)] = round(
+            apply(merged_table[1:replicateNb,2:ncol(merged_table)], 2, mean), 2)
+        write.table(merged_table, 
+                    file=paste0(input_prefix,'_summary.txt'), quote=F, row.names=F, sep='\t')
     }
 
-
-    # If the user selected "testMode", then we delete the created ouput directory
-    if(testMode) unlink(simulName, recursive=T)
 
     # Return the number of output files created.
-    if(!testMode){
-        if(migrate$nr==envChgSteps) cat("### Simulation ", simulName, " completed successfully. Outputs stored in ", 
+    if(migrate$nr==envChgSteps) cat('### Simulation ', simulName, " completed successfully. Outputs stored in ", 
                                                                                  getwd(), "/", simulName, "\n", sep="")
-        return(migrate$nr)
-    }
-    if(testMode){
-        cat("### Test for", simulName, "completed sucessfully.\n")
-       return(envChgSteps)
-    }
+    return(migrate$nr)
 }
 
 ########################################################################################################################
 
 
 
-########################################################################################################################
-### getNoDataValue.                                                                                                  ###
-### **************                                                                                                   ###
-### Checks the structure of an ascii grid file, and if the structure is correct, returns its "NoData" value. If the 
-### structure of the file is not correct, the function returns a string: "ErrorInFile". If no "NoData" value is
-### indicated (which is possible, since this information is optional), the function returns NA.
-###
-### Input parameters:
-###  -> fileName: full name and path of the ascii grid file to check.
-###
-getNoDataValue <- function(fileName){
+####################################################################################################
+get_nodata_value <- function(raster_file){
+    ### Checks the structure of an ascii grid file, and if the structure is correct, returns its
+    ### "NoData" value. If the structure of the file is not correct, the function returns the 
+    ### string "ErrorInFile". If the "NoData" value is missing, which is possible, since this field
+    ### is optional, the function returns NA.
+    ###
+    ### Input parameters:
+    ###  -> raster_file: full name and path of the ascii grid file to check.
+    ###
 
-    ### Check the ascii file has the correct structure.
-    ### **********************************************
+    # Verify the ascii file has the correct structure.
+    # ***********************************************
     noDataVal = "ErrorInFile"
     fileStruct = c("ncols","nrows","xllcorner","yllcorner","cellsize")
     fileStruct2 = c(5,5,9,9,8)
     for(J in 0:4){
-        lineVal = scan(file=fileName, what="character", nlines=1, skip=J, quiet=TRUE)
+        lineVal = scan(file=raster_file, what="character", nlines=1, skip=J, quiet=TRUE)
         if(length(lineVal)!=2) return(noDataVal)
         if(nchar(lineVal[1])!=fileStruct2[J+1]) return(noDataVal)
         if(length(grep(fileStruct[J+1], lineVal[1], ignore.case=T))!=1) return(noDataVal)
     }
 
 
-    ### Get "NoData" value.
-    ### ******************
+    # Get "NoData" value.
+    # ******************
     # This line is optional in the file. If the line is missing we return NA.
-    lineVal = scan(file=fileName, what="character", nlines=1, skip=5, quiet=TRUE)
+    lineVal = scan(file=raster_file, what="character", nlines=1, skip=5, quiet=TRUE)
     if(length(lineVal)<2) return(noDataVal)
     noDataVal = NA
-    if(length(grep("NODATA_value", lineVal[1], ignore.case=T))==1 & nchar(lineVal[1])==12) noDataVal = as.numeric(lineVal[2])
+    if(length(grep("NODATA_value", lineVal[1], ignore.case=T)) == 1 & 
+       nchar(lineVal[1])==12) noDataVal = as.numeric(lineVal[2])
 
     return(noDataVal)
 }
-###
-########################################################################################################################
+####################################################################################################
+
+
+
+####################################################################################################
+merge_files <- function(prefix=NULL, suffix=NULL, replicate_nb=1, merge_mode='append'){
+    # Merge the content of files
+    
+    
+    # Verify input.
+    stopifnot(is.numeric(replicate_nb))
+    stopifnot(replicate_nb >= 1)
+    stopifnot(merge_mode %in% c('append','sum'))
+    
+    # Loop through all replicates and merge data.
+    for(i in 1:replicate_nb){
+        # Load input table.
+        input_file = paste0(prefix, i, suffix)
+        if(!file.exists(input_file)) stop('missing input file:', input_file)
+        input_table = read.table(input_file, header=TRUE, as.is=TRUE, stringsAsFactors=FALSE)
+        
+        # Merge table with other replicates.
+        if(i == 1){
+            merged_table = input_table
+        } else{
+            if(merge_mode == 'append') merged_table = rbind(merged_table, input_table)
+            if(merge_mode == 'sum')    merged_table = merged_table + input_table
+        }
+    }
+    return(merged_table)
+}
+####################################################################################################

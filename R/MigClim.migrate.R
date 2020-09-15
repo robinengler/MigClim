@@ -32,7 +32,7 @@ MigClim.migrate <- function (iniDist="InitialDist", hsMap="HSmap", rcThreshold=0
   
   if(!is.numeric(dispKernel)) stop("Values of 'dispKernel' must be numbers > 0 and <= 1. \n")
   if(any(dispKernel>1) | any(dispKernel<=0)) stop("Values of 'dispKernel' must be numbers > 0 and <= 1")
-  if(barrier!="") if(!any(barrierType==c("weak","strong"))) stop("'barrierType' must be either 'weak' or 'strong'. \n")
+  if(!identical(barrier, "")) if(!any(barrierType==c("weak","strong"))) stop("'barrierType' must be either 'weak' or 'strong'. \n")
   
   if(!is.numeric(iniMatAge)) stop("'iniMatAge' must be an integer number > 0. \n")
   if(iniMatAge<=0 | iniMatAge%%1!=0) stop("'iniMatAge' must be an integer number > 0. \n")
@@ -65,12 +65,12 @@ MigClim.migrate <- function (iniDist="InitialDist", hsMap="HSmap", rcThreshold=0
 	  # if "iniDist" is given in string format:
 	  if(length(iniDist)>1 | length(hsMap)>1 | length(barrier)>1) stop("Data input error: When given as string input, 'iniDist', 'hsMap' and 'barrier' must have a length = 1.\n")
 	  if(!is.character(hsMap)) stop("Data input error: 'iniDist' and 'hsMap' must have the same format: either both 'string' or both 'data frame/matrix/vector'. \n")
-  	  if(barrier!="") if(!is.character(barrier)) stop("Data input error: 'iniDist' and 'barrier' must have the same format: either both 'string' or both 'data frame/matrix/vector'. \n")
+  	  if(!identical(barrier, "")) if(!is.character(barrier)) stop("Data input error: 'iniDist' and 'barrier' must have the same format: either both 'string' or both 'data frame/matrix/vector'. \n")
   }
   if(!is.character(iniDist)){
 	  # if "iniDist" is given in data frame or matrix format:
 	  if(is.character(hsMap)) stop("Data input error: 'iniDist' and 'hsMap' must have the same format: either both 'string' or both 'data frame/matrix/vector'. \n")
-  	  if(barrier!="") if(is.character(barrier)) stop("Data input error: 'iniDist' and 'barrier' must have the same format: either both 'string' or both 'data frame/matrix/vector'. \n") 
+  	  if(!identical(barrier, "")) if(is.character(barrier)) stop("Data input error: 'iniDist' and 'barrier' must have the same format: either both 'string' or both 'data frame/matrix/vector'. \n") 
   }
   
   
@@ -126,17 +126,17 @@ MigClim.migrate <- function (iniDist="InitialDist", hsMap="HSmap", rcThreshold=0
 	  if(RExt!=".asc"){
 		  if(file.exists(paste(basename(iniDist),".asc",sep=""))) stop("The output file '", getwd(), "/", paste(basename(iniDist),".asc",sep=""), "' already exists. \n Delete this file or set 'overWrite=TRUE' in the function's parameters.\n")
 		  for(J in 1:envChgSteps) if(file.exists(paste(basename(hsMap), J,".asc",sep=""))) stop("The output file '", getwd(), "/", paste(basename(hsMap), J,".asc",sep=""), "' already exists. \n Delete this file or set 'overWrite=TRUE' in the function's parameters.\n")
-		  if (barrier!="") if(file.exists(paste(basename(barrier),".asc",sep=""))) stop("The output file '", getwd(), "/", paste(basename(barrier),".asc",sep=""), "' already exists. \n Delete this file or set 'overWrite=TRUE' in the function's parameters.\n")
+		  if (!identical(barrier, "")) if(file.exists(paste(basename(barrier),".asc",sep=""))) stop("The output file '", getwd(), "/", paste(basename(barrier),".asc",sep=""), "' already exists. \n Delete this file or set 'overWrite=TRUE' in the function's parameters.\n")
 	  }
 	  if(RExt==".asc"){
 		  if(iniDist!=basename(iniDist)) if(file.exists(paste(basename(iniDist),".asc",sep=""))) stop("The output file '", getwd(), "/", paste(basename(iniDist),".asc",sep=""), "' already exists. \n Delete this file or set 'overWrite=TRUE' in the function's parameters.\n")
 		  if(hsMap!=basename(hsMap)) for(J in 1:envChgSteps) if(file.exists(paste(basename(hsMap), J,".asc",sep=""))) stop("The output file '", getwd(), "/", paste(basename(hsMap), J,".asc",sep=""), "' already exists. \n Delete this file or set 'overWrite=TRUE' in the function's parameters.\n")
-		  if(barrier!="") if(barrier!=basename(barrier)) if(file.exists(paste(basename(barrier),".asc",sep=""))) stop("The output file '", getwd(), "/", paste(basename(barrier),".asc",sep=""), "' already exists. \n Delete this file or set 'overWrite=TRUE' in the function's parameters.\n")
+		  if(!identical(barrier, "")) if(barrier!=basename(barrier)) if(file.exists(paste(basename(barrier),".asc",sep=""))) stop("The output file '", getwd(), "/", paste(basename(barrier),".asc",sep=""), "' already exists. \n Delete this file or set 'overWrite=TRUE' in the function's parameters.\n")
 	  }
 	  if(RExt==".DataFrame"){
 		  if(file.exists(paste(simulName, ".InitialDist.asc", sep=""))) stop("The output file '", getwd(), "/", paste(simulName, ".InitialDist.asc", sep=""), "' already exists. \n Delete this file or set 'overWrite=TRUE' in the function's parameters.\n")
 		  for(J in 1:envChgSteps) if(file.exists(paste(simulName, ".HSmap", J, ".asc", sep=""))) stop("The output file '", getwd(), "/", paste(simulName, ".HSmap", J, ".asc", sep=""), "' already exists. \n Delete this file or set 'overWrite=TRUE' in the function's parameters.\n")
-		  if (barrier!="") if(file.exists(paste(simulName, ".Barrier.asc", sep=""))) stop("The output file '", getwd(), "/", paste(simulName, ".Barrier.asc", sep=""), "' already exists. \n Delete this file or set 'overWrite=TRUE' in the function's parameters.\n")  
+		  if (!identical(barrier, "")) if(file.exists(paste(simulName, ".Barrier.asc", sep=""))) stop("The output file '", getwd(), "/", paste(simulName, ".Barrier.asc", sep=""), "' already exists. \n Delete this file or set 'overWrite=TRUE' in the function's parameters.\n")  
 	  }
   }
   
@@ -198,7 +198,7 @@ MigClim.migrate <- function (iniDist="InitialDist", hsMap="HSmap", rcThreshold=0
                                                             "e.g. if you set 'hsMap='habitatSuitMap'' then your first hsMap file must be named 'habitatSuitMap1'.\n",
                                                             "the following hsMap file must be named 'habitatSuitMap2', 'habitatSuitMap3' and so on.\n", sep=""))
   }
-  if(barrier!="") if(!file.exists(paste(barrier,RExt,sep=""))) stop(paste("The 'barrier' file '", barrier, RExt, "' could not be found.\n", sep=""))
+  if(!identical(barrier, "")) if(!file.exists(paste(barrier,RExt,sep=""))) stop(paste("The 'barrier' file '", barrier, RExt, "' could not be found.\n", sep=""))
 
   
   # If the input format is not ascii grid, then we convert the files to ascii grid format.
@@ -216,7 +216,7 @@ MigClim.migrate <- function (iniDist="InitialDist", hsMap="HSmap", rcThreshold=0
       CreatedASCII <- c(paste(basename(hsMap),J,".asc",sep=""), CreatedASCII)
     }
     hsMap <- basename(hsMap)
-    if (barrier!=""){
+    if (!identical(barrier, "")){
       Rst <- raster(paste(barrier,RExt,sep=""))
       barrier <- basename(barrier)
       Rst2 <- writeRaster(Rst, filename=paste(barrier,".asc",sep=""), format="ascii", overwrite=TRUE, datatype="INT2S", NAflag=-9999)
@@ -241,7 +241,7 @@ MigClim.migrate <- function (iniDist="InitialDist", hsMap="HSmap", rcThreshold=0
 		}
 		hsMap <- basename(hsMap)    
 	}
-    if(barrier!=""){
+    if(!identical(barrier, "")){
 		if(barrier!=basename(barrier)){
 			file.copy(from=paste(barrier,".asc",sep=""), to=paste(basename(barrier),".asc",sep=""), overwrite=T)
 			barrier <- basename(barrier)
@@ -249,7 +249,6 @@ MigClim.migrate <- function (iniDist="InitialDist", hsMap="HSmap", rcThreshold=0
 		}
     }
   }
-  
   
   # Verify that all ascii grid files have a correct structure and that their NoData value (if any) is set to -9999
   #
@@ -265,7 +264,7 @@ MigClim.migrate <- function (iniDist="InitialDist", hsMap="HSmap", rcThreshold=0
       if(noDataVal >= 0)             stop("Data input error: all 'hsMap' ascii grid files must have 'NoData' values set to a number < 0.\n")
     }    
   }
-  if(barrier!=""){
+  if(!identical(barrier, "")){
     noDataVal <- getNoDataValue(paste(barrier,".asc",sep=""))
     if(!is.na(noDataVal)){
       if(noDataVal == "ErrorInFile") stop("Data input error: the 'Barrier' ascii grid file does not have the correct structure.\n")
@@ -290,7 +289,7 @@ MigClim.migrate <- function (iniDist="InitialDist", hsMap="HSmap", rcThreshold=0
     if(cellStats(Rst,"min")<0 | cellStats(Rst,"max")>1000) stop("Data input error: all habitat suitability rasters must have values in the range [0:1000]. \n")
     rm(Rst)
   }
-  if(barrier!=""){
+  if(!identical(barrier, "")){
     Rst <- raster(paste(barrier,".asc",sep=""))
     #if(dataType(Rst)!="INT2U" & dataType(Rst)!="INT1U") stop("Data input error: the 'barrier' layer must contain integer values (8 or 16-bit unsigned integers). The R 'dataType' code for 8-bit and 16-bit unsigned integers is 'INT1U' and 'INT2U'.")
     if(nrow(Rst)!=nrRows | ncol(Rst)!=nrCols) stop("Data input error: not all your rasters input data have the same dimensions.\n")
@@ -315,7 +314,7 @@ MigClim.migrate <- function (iniDist="InitialDist", hsMap="HSmap", rcThreshold=0
   write(paste("dispSteps", dispSteps), file=fileName, append=T)
   write(paste("dispDist", length(dispKernel)), file=fileName, append=T)
   write(c("dispKernel", dispKernel), file=fileName, append=T, ncolumns=length(dispKernel)+1)
-  if(barrier!=""){
+  if(!identical(barrier, "")){
     write(paste("barrier", barrier), file=fileName, append=T)
     write(paste("barrierType", barrierType), file=fileName, append=T)
   }

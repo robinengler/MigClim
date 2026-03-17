@@ -58,7 +58,7 @@ void genClust (int *nrow, int *ncol, int *ncls, int *niter, int *thrs,
   suitability = NULL;
   barrier = NULL;
   srand(time(NULL));
-  
+
   /*
   ** Allocate the necessary memory.
   */
@@ -102,7 +102,7 @@ void genClust (int *nrow, int *ncol, int *ncls, int *niter, int *thrs,
       }
     }
   }
-  
+
   /*
   ** Get an initial distribution for the genetic clusters. If a file name
   ** is given, read the initial distribution from file. Otherwise create
@@ -251,7 +251,7 @@ void genClust (int *nrow, int *ncol, int *ncls, int *niter, int *thrs,
     }
   }
   Rprintf ("done.\n");
-  
+
  End_of_Routine:
   /*
   ** Free the allocated memory.
@@ -288,7 +288,7 @@ void genClust (int *nrow, int *ncol, int *ncls, int *niter, int *thrs,
     }
     free (barrier);
   }
-}    
+}
 
 
 /*

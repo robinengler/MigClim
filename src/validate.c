@@ -34,7 +34,7 @@ void validate (char **obsFileName, int *npts, char **simFileName, int *ncls,
           avgScoreMax;
   char    line[1024];
   FILE   *fp;
-  
+
   /*
   ** Initialize the variables.
   */
@@ -51,7 +51,7 @@ void validate (char **obsFileName, int *npts, char **simFileName, int *ncls,
   match = NULL;
   bestScore[0] = -1;
   bestScore[1] = -1;
-  
+
   /*
   ** Allocate the necessary memory.
   */
@@ -72,7 +72,7 @@ void validate (char **obsFileName, int *npts, char **simFileName, int *ncls,
   {
     points[i] = 0;
   }
-  
+
   /*
   ** Read the observed cluster data.
   */
@@ -198,7 +198,7 @@ void validate (char **obsFileName, int *npts, char **simFileName, int *ncls,
   */
   bestScore[0] = totScoreMax;
   bestScore[1] = avgScoreMax;
-  
+
  End_of_Routine:
   /*
   ** Free the allocated memory and close the file, if necessary.

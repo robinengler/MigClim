@@ -12,7 +12,7 @@
 **                  -> replace any value < 0 by 0 (this removes NoData values)
 **                  -> replace any value of 1 in filterMatrix by 0
 **                  -> replace any value of NoData (-9999) in filterMatrix by NoData.
-**                    
+**
 ** Parameters:
 **   -> **inMatrix: A pointer to the input matrix.
 **   -> **filterMatrix: A pointer to the barrier matrix.
@@ -42,7 +42,7 @@ void mcFilterMatrix(int **inMatrix, int **filterMatrix, bool filterNoData, bool 
     }
     }
   }
-  
+
   /* Add NoData where it is present in filterMatrix. */
   if(insertNoData){
     for (i = 0; i < nrRows; i++){
@@ -51,7 +51,7 @@ void mcFilterMatrix(int **inMatrix, int **filterMatrix, bool filterNoData, bool 
     }
     }
   }
-  
+
 }
 
 
@@ -79,7 +79,7 @@ bool mcIntersectsBarrier (int snkX, int snkY, int srcX, int srcY,
   bool barFound;
 
   barFound = false;
-  
+
   /*
   ** Calculate the distance in both dimensions between the source and sink
   ** pixels and take the largest of the two.
@@ -235,7 +235,7 @@ bool mcIntersectsBarrier (int snkX, int snkY, int srcX, int srcY,
       barFound = true;
       goto End_of_Routine;
     }
-    /*    
+    /*
     ** BARRIER TOP_RIGHT
     */
     for (i = 1; i <= distMax; i++)
@@ -295,7 +295,7 @@ bool mcIntersectsBarrier (int snkX, int snkY, int srcX, int srcY,
       barFound = true;
       goto End_of_Routine;
     }
-  }        
+  }
 
  End_of_Routine:
   /*
@@ -303,7 +303,7 @@ bool mcIntersectsBarrier (int snkX, int snkY, int srcX, int srcY,
   */
   return (barFound);
 }
-    
+
 
 /*
 ** EoF: barriers.c
